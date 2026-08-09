@@ -23,7 +23,7 @@ struct MealsView: View {
     private var protein: Double { todaysMeals.reduce(0) { $0 + $1.proteinGrams } }
     private var carbohydrates: Double { todaysMeals.reduce(0) { $0 + $1.carbohydratesGrams } }
     private var fat: Double { todaysMeals.reduce(0) { $0 + $1.fatGrams } }
-    private var netCalories: Double { caloriesConsumed - healthStore.metrics.activeEnergy }
+    private var netCalories: Double { caloriesConsumed - healthStore.metrics.totalEnergyOut }
 
     var body: some View {
         NavigationStack {
@@ -96,7 +96,7 @@ struct MealsView: View {
             HStack {
                 InsightLabel(title: "Intake", value: "\(Int(caloriesConsumed)) kcal", image: "fork.knife")
                 Spacer()
-                InsightLabel(title: "Active burn", value: "\(Int(healthStore.metrics.activeEnergy)) kcal", image: "flame.fill")
+                InsightLabel(title: "Total burn", value: "\(Int(healthStore.metrics.totalEnergyOut)) kcal", image: "flame.fill")
                 Spacer()
                 InsightLabel(title: "Net", value: "\(Int(netCalories)) kcal", image: "equal.circle.fill")
             }
@@ -153,10 +153,13 @@ struct MealsView: View {
     }
 
     private var weeklyBalanceChart: some View {
-        let balance = analytics.weeklyBalance(activeEnergyByDay: healthStore.weeklyActiveEnergy)
+        let balance = analytics.weeklyBalance(activeEnergyByDay: healthStore.weeklyTrends.activeEnergy)
         return VStack(alignment: .leading, spacing: 16) {
-            Text("Calories In vs Out — 7 Days")
+            Text("Calories In vs Active Burn — 7 Days")
                 .font(.title3.weight(.bold))
+            Text("Resting energy (roughly \(Int(healthStore.metrics.restingEnergy)) kcal/day) isn't shown here but still counts toward your true balance — see the Health tab for the full picture.")
+                .font(.caption2)
+                .foregroundStyle(AppTheme.secondaryText.opacity(0.8))
 
             if balance.isEmpty {
                 Text("Connect Health to compare calories eaten against active energy burned over the week.")

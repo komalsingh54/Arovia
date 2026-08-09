@@ -18,6 +18,11 @@ struct ContentView: View {
                     Label("Activity", systemImage: "figure.walk")
                 }
 
+            HealthOverviewView()
+                .tabItem {
+                    Label("Health", systemImage: "heart.fill")
+                }
+
             MealsView()
                 .tabItem {
                     Label("Meals", systemImage: "fork.knife")

@@ -57,10 +57,10 @@ struct MealAnalytics {
 
     /// Merges logged calories-in with HealthKit active-energy-out over the same 7-day window,
     /// so the trend chart lines up day-for-day even if one source has gaps.
-    func weeklyBalance(activeEnergyByDay: [DailyEnergyPoint]) -> [DailyCalorieBalance] {
+    func weeklyBalance(activeEnergyByDay: [DailyMetricPoint]) -> [DailyCalorieBalance] {
         activeEnergyByDay.map { point in
             let caloriesIn = meals(on: point.date).reduce(0) { $0 + $1.calories }
-            return DailyCalorieBalance(date: point.date, caloriesIn: caloriesIn, caloriesOut: point.activeEnergy)
+            return DailyCalorieBalance(date: point.date, caloriesIn: caloriesIn, caloriesOut: point.value)
         }
     }
 

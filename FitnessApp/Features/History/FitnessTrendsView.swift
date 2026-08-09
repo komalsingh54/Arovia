@@ -22,6 +22,30 @@ struct FitnessTrendsView: View {
 
                 ActivityRingsView(metrics: healthStore.metrics)
 
+                WeeklyTrendChart(
+                    title: "Distance",
+                    points: healthStore.weeklyTrends.distanceMeters.map { DailyMetricPoint(date: $0.date, value: $0.value / 1000) },
+                    unit: "km",
+                    color: .cyan,
+                    style: .bar
+                )
+
+                WeeklyTrendChart(
+                    title: "Resting Heart Rate",
+                    points: healthStore.weeklyTrends.restingHeartRate.filter { $0.value > 0 },
+                    unit: "bpm",
+                    color: AppTheme.energy,
+                    style: .line
+                )
+
+                WeeklyTrendChart(
+                    title: "Sleep",
+                    points: healthStore.weeklyTrends.sleepHours,
+                    unit: "hrs",
+                    color: .indigo,
+                    style: .bar
+                )
+
                 JournalBarChart(entries: localStore.journalEntries)
 
                 JournalCalendar(entries: localStore.journalEntries)
@@ -32,6 +56,51 @@ struct FitnessTrendsView: View {
         .navigationTitle("Trends")
         .navigationBarTitleDisplayMode(.inline)
         .task { await healthStore.refresh() }
+        .refreshable { await healthStore.refresh() }
+    }
+}
+
+private struct WeeklyTrendChart: View {
+    enum Style { case bar, line }
+
+    let title: String
+    let points: [DailyMetricPoint]
+    let unit: String
+    let color: Color
+    let style: Style
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.title3.weight(.bold))
+
+            if points.isEmpty || points.allSatisfy({ $0.value == 0 }) {
+                Text("Not enough data yet — this fills in automatically from Apple Health.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.secondaryText)
+            } else {
+                Chart(points) { point in
+                    switch style {
+                    case .bar:
+                        BarMark(x: .value("Day", point.date, unit: .day), y: .value(unit, point.value))
+                            .foregroundStyle(color.gradient)
+                            .cornerRadius(6)
+                    case .line:
+                        LineMark(x: .value("Day", point.date, unit: .day), y: .value(unit, point.value))
+                            .foregroundStyle(color)
+                            .symbol(Circle())
+                        AreaMark(x: .value("Day", point.date, unit: .day), y: .value(unit, point.value))
+                            .foregroundStyle(color.opacity(0.12))
+                    }
+                }
+                .chartXAxis { AxisMarks(values: .stride(by: .day)) { AxisValueLabel(format: .dateTime.weekday(.abbreviated)) } }
+                .frame(height: 160)
+                .accessibilityLabel("\(title) over the last 7 days")
+            }
+        }
+        .padding()
+        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
     }
 }
 
