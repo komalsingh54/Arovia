@@ -10,9 +10,11 @@ import Foundation
 import SwiftData
 
 enum FeatureFlags {
-    /// Flip off to run fully local-only (e.g. for previews, tests, or if CloudKit isn't configured
-    /// for this bundle ID yet). Sync itself also self-disables if the account isn't signed in.
-    static let cloudKitEnabled = true
+    /// CloudKit requires a paid Apple Developer Program membership — personal/free Apple IDs
+    /// can't add the iCloud capability at all. Defaults to off so the app builds and runs fully
+    /// local-only. Flip to `true` once you're enrolled and have re-added the iCloud + CloudKit
+    /// capability in Signing & Capabilities (and restored the entitlement — see Arovia.entitlements.disabled).
+    static let cloudKitEnabled = false
 }
 
 @MainActor
