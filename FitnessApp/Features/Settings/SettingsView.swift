@@ -8,10 +8,19 @@ import SwiftUI
 struct SettingsView: View {
     @AppStorage("usesMetricUnits") private var usesMetricUnits = true
     @EnvironmentObject private var healthStore: HealthStore
+    @EnvironmentObject private var localStore: LocalStore
+    @State private var isSyncing = false
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    NavigationLink {
+                        ProfileView()
+                    } label: {
+                        Label("Profile", systemImage: "person.crop.circle")
+                    }
+                }
                 Section("Preferences") {
                     Toggle("Use metric units", isOn: $usesMetricUnits)
                 }
@@ -27,8 +36,19 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Section("iCloud Sync") {
+                    LabeledContent("Goals, journal & meals", value: FeatureFlags.cloudKitEnabled ? "Enabled" : "Local only")
+                    Button(isSyncing ? "Syncing…" : "Sync Now") {
+                        Task {
+                            isSyncing = true
+                            await localStore.syncWithCloud()
+                            isSyncing = false
+                        }
+                    }
+                    .disabled(isSyncing || !FeatureFlags.cloudKitEnabled)
+                }
                 Section("Privacy") {
-                    Text("Health data is read only after you grant permission. Personal goals and journal entries stay on this device.")
+                    Text("Health data is read only after you grant permission. Personal goals and journal entries stay on this device and sync privately to your iCloud account.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

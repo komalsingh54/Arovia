@@ -31,17 +31,19 @@ struct JournalEntry: Identifiable, Codable, Equatable {
     let details: String
     let date: Date
     let category: JournalCategory
+    let updatedAt: Date
 
-    init(title: String, details: String, category: JournalCategory = .reflection, date: Date = .now) {
+    init(title: String, details: String, category: JournalCategory = .reflection, date: Date = .now, updatedAt: Date = .now) {
         self.id = UUID()
         self.title = title
         self.details = details
         self.date = date
         self.category = category
+        self.updatedAt = updatedAt
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, details, date, category
+        case id, title, details, date, category, updatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -51,17 +53,19 @@ struct JournalEntry: Identifiable, Codable, Equatable {
         details = try container.decode(String.self, forKey: .details)
         date = try container.decode(Date.self, forKey: .date)
         category = try container.decodeIfPresent(JournalCategory.self, forKey: .category) ?? .reflection
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? date
     }
 
     func updating(title: String, details: String, category: JournalCategory) -> JournalEntry {
-        JournalEntry(id: id, title: title, details: details, date: date, category: category)
+        JournalEntry(id: id, title: title, details: details, date: date, category: category, updatedAt: .now)
     }
 
-    private init(id: UUID, title: String, details: String, date: Date, category: JournalCategory) {
+    init(id: UUID, title: String, details: String, date: Date, category: JournalCategory, updatedAt: Date) {
         self.id = id
         self.title = title
         self.details = details
         self.date = date
         self.category = category
+        self.updatedAt = updatedAt
     }
 }

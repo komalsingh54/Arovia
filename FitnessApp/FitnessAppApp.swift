@@ -9,8 +9,16 @@ import SwiftUI
 
 @main
 struct FitnessAppApp: App {
+    private let dependencies: AppDependencies
+
     @StateObject private var healthStore = HealthStore()
-    @StateObject private var localStore = LocalStore()
+    @StateObject private var localStore: LocalStore
+
+    init() {
+        let dependencies = AppDependencies()
+        self.dependencies = dependencies
+        _localStore = StateObject(wrappedValue: LocalStore(dependencies: dependencies))
+    }
 
     var body: some Scene {
         WindowGroup {

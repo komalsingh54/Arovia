@@ -11,6 +11,13 @@ import Combine
 import HealthKit
 #endif
 
+/// A single day's active-energy burn, used for the 7-day calories-in-vs-out trend chart.
+struct DailyEnergyPoint: Identifiable, Equatable {
+    let date: Date
+    let activeEnergy: Double
+    var id: Date { date }
+}
+
 @MainActor
 final class HealthStore: ObservableObject {
     enum Status: Equatable {
@@ -25,6 +32,7 @@ final class HealthStore: ObservableObject {
 
     @Published private(set) var metrics = DailyMetrics.empty
     @Published private(set) var recentWorkouts: [WorkoutSummary] = []
+    @Published private(set) var weeklyActiveEnergy: [DailyEnergyPoint] = []
     @Published private(set) var status: Status = .idle
     private let authorizationRequestedKey = "healthAuthorizationRequested"
 
@@ -45,8 +53,10 @@ final class HealthStore: ObservableObject {
             let service = HealthKitService()
             async let fetchedMetrics = service.fetchTodayMetrics()
             async let fetchedWorkouts = service.fetchRecentWorkouts()
+            async let fetchedWeeklyEnergy = service.fetchWeeklyActiveEnergy()
             metrics = try await fetchedMetrics
             recentWorkouts = try await fetchedWorkouts
+            weeklyActiveEnergy = try await fetchedWeeklyEnergy
             status = .ready
         } catch HealthKitServiceError.authorizationRequired {
             status = .authorizationRequired
@@ -132,6 +142,52 @@ struct HealthKitService {
                 }
                 continuation.resume(returning: workouts)
             }
+            healthStore.execute(query)
+        }
+    }
+
+    /// Active energy burned for each of the last 7 days (oldest first), used to plot calories-in-vs-out.
+    func fetchWeeklyActiveEnergy() async throws -> [DailyEnergyPoint] {
+        guard let activeEnergy = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned) else {
+            throw HealthKitServiceError.unavailableMetric
+        }
+
+        let calendar = Calendar.current
+        let endOfToday = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now)) ?? .now
+        guard let startDate = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: .now)) else {
+            return []
+        }
+
+        var interval = DateComponents()
+        interval.day = 1
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let query = HKStatisticsCollectionQuery(
+                quantityType: activeEnergy,
+                quantitySamplePredicate: HKQuery.predicateForSamples(withStart: startDate, end: endOfToday),
+                options: .cumulativeSum,
+                anchorDate: startDate,
+                intervalComponents: interval
+            )
+
+            query.initialResultsHandler = { _, results, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let results else {
+                    continuation.resume(returning: [])
+                    return
+                }
+
+                var points: [DailyEnergyPoint] = []
+                results.enumerateStatistics(from: startDate, to: endOfToday) { statistics, _ in
+                    let sum = statistics.sumQuantity()?.doubleValue(for: .kilocalorie()) ?? 0
+                    points.append(DailyEnergyPoint(date: statistics.startDate, activeEnergy: sum))
+                }
+                continuation.resume(returning: points)
+            }
+
             healthStore.execute(query)
         }
     }

@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import Charts
 
 struct MealsView: View {
     @EnvironmentObject private var localStore: LocalStore
@@ -15,6 +16,8 @@ struct MealsView: View {
     private var todaysMeals: [MealEntry] {
         localStore.mealEntries.filter { Calendar.current.isDateInToday($0.date) }
     }
+
+    private var analytics: MealAnalytics { MealAnalytics(meals: localStore.mealEntries) }
 
     private var caloriesConsumed: Double { todaysMeals.reduce(0) { $0 + $1.calories } }
     private var protein: Double { todaysMeals.reduce(0) { $0 + $1.proteinGrams } }
@@ -35,6 +38,9 @@ struct MealsView: View {
 
                     calorieSummary
                     macroSummary
+                    mealTypeBreakdown
+                    weeklyBalanceChart
+                    insightCard
 
                     HStack {
                         Text("Today’s Meals")
@@ -51,8 +57,11 @@ struct MealsView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 24)
                     } else {
-                        ForEach(todaysMeals) { meal in
-                            MealCard(meal: meal)
+                        ForEach(MealType.allCases) { type in
+                            let meals = todaysMeals.filter { $0.mealType == type }
+                            if !meals.isEmpty {
+                                MealTypeSection(type: type, meals: meals)
+                            }
                         }
                     }
                 }
@@ -108,12 +117,128 @@ struct MealsView: View {
         }
     }
 
+    private var mealTypeBreakdown: some View {
+        let breakdown = analytics.breakdown()
+        return VStack(alignment: .leading, spacing: 16) {
+            Text("Calories by Meal")
+                .font(.title3.weight(.bold))
+
+            if breakdown.allSatisfy({ $0.calories == 0 }) {
+                Text("Log a meal to see how your calories are split across the day.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.secondaryText)
+            } else {
+                Chart(breakdown) { item in
+                    BarMark(
+                        x: .value("Calories", item.calories),
+                        y: .value("Meal", item.mealType.title)
+                    )
+                    .foregroundStyle(AppTheme.tint.gradient)
+                    .cornerRadius(6)
+                    .annotation(position: .trailing) {
+                        if item.calories > 0 {
+                            Text("\(Int(item.calories))")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                    }
+                }
+                .frame(height: 160)
+                .accessibilityLabel("Calories logged by meal type today")
+            }
+        }
+        .padding()
+        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+    }
+
+    private var weeklyBalanceChart: some View {
+        let balance = analytics.weeklyBalance(activeEnergyByDay: healthStore.weeklyActiveEnergy)
+        return VStack(alignment: .leading, spacing: 16) {
+            Text("Calories In vs Out — 7 Days")
+                .font(.title3.weight(.bold))
+
+            if balance.isEmpty {
+                Text("Connect Health to compare calories eaten against active energy burned over the week.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.secondaryText)
+            } else {
+                Chart {
+                    ForEach(balance) { day in
+                        LineMark(x: .value("Day", day.date, unit: .day), y: .value("Calories", day.caloriesIn))
+                            .foregroundStyle(by: .value("Series", "In"))
+                            .symbol(by: .value("Series", "In"))
+                        LineMark(x: .value("Day", day.date, unit: .day), y: .value("Calories", day.caloriesOut))
+                            .foregroundStyle(by: .value("Series", "Out"))
+                            .symbol(by: .value("Series", "Out"))
+                    }
+                }
+                .chartForegroundStyleScale(["In": AppTheme.tint, "Out": AppTheme.energy])
+                .chartXAxis { AxisMarks(values: .stride(by: .day)) { AxisValueLabel(format: .dateTime.weekday(.abbreviated)) } }
+                .frame(height: 180)
+                .accessibilityLabel("Calories eaten versus active energy burned over the last 7 days")
+            }
+        }
+        .padding()
+        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+    }
+
+    private var insightCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Insights", systemImage: "sparkles")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.tint)
+            Text("Average \(Int(analytics.averageDailyCalories)) kcal logged per day. \(streakInsight)")
+                .font(.footnote)
+                .foregroundStyle(AppTheme.secondaryText)
+            if let biggest = analytics.biggestContributor() {
+                Text("\(biggest.mealType.title) is your biggest calorie contributor today at \(Int(biggest.calories)) kcal.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+        }
+        .padding()
+        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+    }
+
+    private var streakInsight: String {
+        let streak = analytics.loggingStreak
+        if streak <= 1 { return "Log today to start a streak." }
+        return "You’ve logged meals \(streak) days in a row."
+    }
+
     private var calorieInsight: String {
         let remaining = dailyCalorieTarget - caloriesConsumed
         if remaining >= 0 {
             return "\(Int(remaining)) kcal remain within your daily target. Active calories burned are read from HealthKit."
         }
         return "You are \(Int(abs(remaining))) kcal above your daily target. Active calories burned are read from HealthKit."
+    }
+}
+
+private struct MealTypeSection: View {
+    let type: MealType
+    let meals: [MealEntry]
+
+    private var total: Double { meals.reduce(0) { $0 + $1.calories } }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(type.title, systemImage: type.systemImage)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.tint)
+                Spacer()
+                Text("\(Int(total)) kcal")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+            ForEach(meals) { meal in
+                MealCard(meal: meal)
+            }
+        }
     }
 }
 

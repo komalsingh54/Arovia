@@ -23,7 +23,7 @@ struct ActivityView: View {
                         Text("Your recent workouts will appear here after you connect Health.")
                             .foregroundStyle(AppTheme.secondaryText)
                     } else {
-                        ForEach(healthStore.recentWorkouts) { workout in
+                        ForEach(healthStore.recentWorkouts.prefix(5)) { workout in
                             Button {
                                 workoutToAnnotate = workout
                             } label: {
@@ -47,6 +47,7 @@ struct ActivityView: View {
                     }
                 }
                 Section {
+                    NavigationLink("View workout log") { WorkoutsView() }
                     NavigationLink("View journal history") { HistoryView() }
                     NavigationLink("View weekly insights") { InsightsView() }
                     NavigationLink("View fitness trends") { FitnessTrendsView() }
@@ -59,44 +60,6 @@ struct ActivityView: View {
             .refreshable { await healthStore.refresh() }
             .sheet(item: $workoutToAnnotate) { workout in
                 WorkoutNoteEditor(workout: workout)
-            }
-        }
-    }
-}
-
-private struct WorkoutNoteEditor: View {
-    let workout: WorkoutSummary
-
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var localStore: LocalStore
-    @State private var note = ""
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Workout") {
-                    LabeledContent("Type", value: workout.title)
-                    LabeledContent("Duration", value: workout.durationDescription)
-                }
-                Section("Your note") {
-                    TextField("How did it feel?", text: $note, axis: .vertical)
-                        .lineLimit(3...8)
-                }
-            }
-            .navigationTitle("Workout Note")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        localStore.add(entry: JournalEntry(
-                            title: workout.title,
-                            details: note,
-                            category: .workout,
-                            date: workout.startDate
-                        ))
-                        dismiss()
-                    }
-                }
             }
         }
     }

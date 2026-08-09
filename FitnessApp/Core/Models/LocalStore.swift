@@ -2,6 +2,10 @@
 //  LocalStore.swift
 //  Arovia
 //
+//  Thin, UI-facing facade over the repository layer. Views bind to the @Published arrays here;
+//  all persistence detail (SwiftData) and cloud sync (CloudKit) is delegated to the repositories
+//  and `CloudKitSyncing`, keeping the "UI never talks directly to CloudKit" rule from agents.md.
+//
 
 import Foundation
 import SwiftUI
@@ -9,73 +13,127 @@ import Combine
 
 @MainActor
 final class LocalStore: ObservableObject {
-    @Published private(set) var goals: [FitnessGoal]
-    @Published private(set) var journalEntries: [JournalEntry]
-    @Published private(set) var mealEntries: [MealEntry]
+    @Published private(set) var goals: [FitnessGoal] = []
+    @Published private(set) var journalEntries: [JournalEntry] = []
+    @Published private(set) var mealEntries: [MealEntry] = []
 
-    private let defaults: UserDefaults
-    private let goalsKey = "fitnessGoals"
-    private let journalEntriesKey = "journalEntries"
-    private let mealEntriesKey = "mealEntries"
+    private let goalsRepository: GoalsRepository
+    private let journalRepository: JournalRepository
+    private let mealsRepository: MealsRepository
+    private let cloudKitSyncService: CloudKitSyncing
 
-    init(defaults: UserDefaults = .standard) {
-        self.defaults = defaults
-        self.goals = Self.decode([FitnessGoal].self, forKey: "fitnessGoals", defaults: defaults)
-        self.journalEntries = Self.decode([JournalEntry].self, forKey: "journalEntries", defaults: defaults)
-        self.mealEntries = Self.decode([MealEntry].self, forKey: "mealEntries", defaults: defaults)
+    init(dependencies: AppDependencies) {
+        self.goalsRepository = dependencies.goalsRepository
+        self.journalRepository = dependencies.journalRepository
+        self.mealsRepository = dependencies.mealsRepository
+        self.cloudKitSyncService = dependencies.cloudKitSyncService
+        reloadAll()
+        Task { await syncWithCloud() }
     }
 
+    /// Preview/test-friendly initializer that skips CloudKit entirely.
+    init(goalsRepository: GoalsRepository, journalRepository: JournalRepository, mealsRepository: MealsRepository) {
+        self.goalsRepository = goalsRepository
+        self.journalRepository = journalRepository
+        self.mealsRepository = mealsRepository
+        self.cloudKitSyncService = NoopCloudKitSyncService()
+        reloadAll()
+    }
+
+    // MARK: Goals
+
     func add(goal: FitnessGoal) {
-        goals.append(goal)
-        persist(goals, forKey: goalsKey)
+        do {
+            try goalsRepository.insert(goal)
+            goals.append(goal)
+            Task { await syncWithCloud() }
+        } catch {
+            reloadAll()
+        }
     }
 
     func deleteGoals(at offsets: IndexSet) {
+        let removed = offsets.map { goals[$0] }
         goals.remove(atOffsets: offsets)
-        persist(goals, forKey: goalsKey)
+        for goal in removed {
+            try? goalsRepository.delete(id: goal.id)
+        }
     }
 
     func update(goal: FitnessGoal) {
         guard let index = goals.firstIndex(where: { $0.id == goal.id }) else { return }
-        goals[index] = goal
-        persist(goals, forKey: goalsKey)
+        do {
+            try goalsRepository.update(goal)
+            goals[index] = goal
+            Task { await syncWithCloud() }
+        } catch {
+            reloadAll()
+        }
     }
 
+    // MARK: Journal
+
     func add(entry: JournalEntry) {
-        journalEntries.append(entry)
-        journalEntries.sort { $0.date > $1.date }
-        persist(journalEntries, forKey: journalEntriesKey)
+        do {
+            try journalRepository.insert(entry)
+            journalEntries.append(entry)
+            journalEntries.sort { $0.date > $1.date }
+            Task { await syncWithCloud() }
+        } catch {
+            reloadAll()
+        }
     }
 
     func deleteJournalEntries(at offsets: IndexSet) {
+        let removed = offsets.map { journalEntries[$0] }
         journalEntries.remove(atOffsets: offsets)
-        persist(journalEntries, forKey: journalEntriesKey)
+        for entry in removed {
+            try? journalRepository.delete(id: entry.id)
+        }
     }
 
     func update(entry: JournalEntry) {
         guard let index = journalEntries.firstIndex(where: { $0.id == entry.id }) else { return }
-        journalEntries[index] = entry
-        persist(journalEntries, forKey: journalEntriesKey)
+        do {
+            try journalRepository.update(entry)
+            journalEntries[index] = entry
+            Task { await syncWithCloud() }
+        } catch {
+            reloadAll()
+        }
     }
 
+    // MARK: Meals
+
     func add(meal: MealEntry) {
-        mealEntries.append(meal)
-        mealEntries.sort { $0.date > $1.date }
-        persist(mealEntries, forKey: mealEntriesKey)
+        do {
+            try mealsRepository.insert(meal)
+            mealEntries.append(meal)
+            mealEntries.sort { $0.date > $1.date }
+            Task { await syncWithCloud() }
+        } catch {
+            reloadAll()
+        }
     }
 
     func deleteMealEntries(at offsets: IndexSet) {
+        let removed = offsets.map { mealEntries[$0] }
         mealEntries.remove(atOffsets: offsets)
-        persist(mealEntries, forKey: mealEntriesKey)
+        for meal in removed {
+            try? mealsRepository.delete(id: meal.id)
+        }
     }
 
-    private func persist<T: Encodable>(_ value: T, forKey key: String) {
-        guard let data = try? JSONEncoder().encode(value) else { return }
-        defaults.set(data, forKey: key)
+    // MARK: Sync
+
+    /// Called after every local mutation and can also be triggered from pull-to-refresh.
+    func syncWithCloud() async {
+        await cloudKitSyncService.syncAll()
     }
 
-    private static func decode<Element: Decodable>(_ type: [Element].Type, forKey key: String, defaults: UserDefaults) -> [Element] {
-        guard let data = defaults.data(forKey: key) else { return [] }
-        return (try? JSONDecoder().decode(type, from: data)) ?? []
+    private func reloadAll() {
+        goals = (try? goalsRepository.fetchAll()) ?? []
+        journalEntries = ((try? journalRepository.fetchAll()) ?? []).sorted { $0.date > $1.date }
+        mealEntries = ((try? mealsRepository.fetchAll()) ?? []).sorted { $0.date > $1.date }
     }
 }
