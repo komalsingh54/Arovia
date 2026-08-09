@@ -1,24 +1,43 @@
 //
 //  ContentView.swift
-//  FitnessApp
-//
-//  Created by Komal Singh on 08/08/2026.
+//  Arovia
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
-    }
-}
+        TabView {
+            DashboardView()
+                .tabItem {
+                    Label("Dashboard", systemImage: "square.grid.2x2.fill")
+                }
 
-#Preview {
-    ContentView()
+            ActivityView()
+                .tabItem {
+                    Label("Activity", systemImage: "figure.walk")
+                }
+
+            MealsView()
+                .tabItem {
+                    Label("Meals", systemImage: "fork.knife")
+                }
+
+            JournalView()
+                .tabItem {
+                    Label("Journal", systemImage: "note.text")
+                }
+
+            GoalsView()
+                .tabItem {
+                    Label("Goals", systemImage: "target")
+                }
+
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+        }
+        .tint(AppTheme.tint)
+    }
 }
