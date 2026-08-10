@@ -33,8 +33,15 @@ final class HealthStore: ObservableObject {
     /// The real error text from HealthKit, if the last authorization/refresh attempt failed.
     /// Shown in the UI so "it's not syncing" can actually be diagnosed instead of guessed at.
     @Published private(set) var lastErrorMessage: String?
+    /// Health types HealthKit has never actually asked the person about (`.notDetermined`).
+    /// This is the real, API-backed signal for "some health data isn't connected" — unlike a
+    /// vague "connect health" prompt, it names exactly what's missing. Powers the header banner.
+    @Published private(set) var pendingPermissionNames: [String] = []
 
     private let authorizationRequestedKey = "healthAuthorizationRequested"
+    #if canImport(HealthKit)
+    private let healthKitStore = HKHealthStore()
+    #endif
 
     #if canImport(HealthKit)
     private let observerService = HealthKitObserverService()
@@ -47,6 +54,8 @@ final class HealthStore: ObservableObject {
             lastErrorMessage = "This device doesn't support Health data (e.g. iPad without Health app)."
             return
         }
+
+        refreshPendingPermissions()
 
         guard UserDefaults.standard.bool(forKey: authorizationRequestedKey) else {
             status = .authorizationRequired
@@ -83,6 +92,7 @@ final class HealthStore: ObservableObject {
             try await HealthKitService().requestAuthorization()
             UserDefaults.standard.set(true, forKey: authorizationRequestedKey)
             lastErrorMessage = nil
+            refreshPendingPermissions()
             await refresh()
         } catch {
             status = .denied
@@ -90,6 +100,18 @@ final class HealthStore: ObservableObject {
         }
         #else
         status = .unavailable
+        #endif
+    }
+
+    /// Checks HealthKit's real per-type authorization status. `.notDetermined` means this exact
+    /// type has never been presented to the person for this app — the only state HealthKit
+    /// reliably reveals for read-only types (granted vs. denied is intentionally hidden from apps).
+    private func refreshPendingPermissions() {
+        #if canImport(HealthKit)
+        let pending = HealthKitService.readTypes.filter {
+            healthKitStore.authorizationStatus(for: $0) == .notDetermined
+        }
+        pendingPermissionNames = pending.map { HealthKitService.displayName(for: $0) }.sorted()
         #endif
     }
 

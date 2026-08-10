@@ -6,43 +6,50 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var healthStore: HealthStore
+
     var body: some View {
-        TabView {
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "square.grid.2x2.fill")
-                }
+        VStack(spacing: 0) {
+            HealthPermissionBanner()
 
-            ActivityView()
-                .tabItem {
-                    Label("Activity", systemImage: "figure.walk")
-                }
+            TabView {
+                DashboardView()
+                    .tabItem {
+                        Label("Dashboard", systemImage: "square.grid.2x2.fill")
+                    }
 
-            HealthOverviewView()
-                .tabItem {
-                    Label("Health", systemImage: "heart.fill")
-                }
+                ActivityView()
+                    .tabItem {
+                        Label("Activity", systemImage: "figure.walk")
+                    }
 
-            MealsView()
-                .tabItem {
-                    Label("Meals", systemImage: "fork.knife")
-                }
+                HealthOverviewView()
+                    .tabItem {
+                        Label("Health", systemImage: "heart.fill")
+                    }
 
-            JournalView()
-                .tabItem {
-                    Label("Journal", systemImage: "note.text")
-                }
+                MealsView()
+                    .tabItem {
+                        Label("Meals", systemImage: "fork.knife")
+                    }
 
-            GoalsView()
-                .tabItem {
-                    Label("Goals", systemImage: "target")
-                }
+                JournalView()
+                    .tabItem {
+                        Label("Journal", systemImage: "note.text")
+                    }
 
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
+                GoalsView()
+                    .tabItem {
+                        Label("Goals", systemImage: "target")
+                    }
+
+                SettingsView()
+                    .tabItem {
+                        Label("Settings", systemImage: "gearshape")
+                    }
+            }
+            .tint(AppTheme.tint)
         }
-        .tint(AppTheme.tint)
+        .background(AppTheme.screenBackground)
     }
 }

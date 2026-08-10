@@ -47,6 +47,26 @@ struct HealthKitService {
         Set(readTypes.compactMap { $0 as? HKSampleType })
     }
 
+    private static let friendlyNames: [String: String] = [
+        HKQuantityTypeIdentifier.stepCount.rawValue: "Steps",
+        HKQuantityTypeIdentifier.activeEnergyBurned.rawValue: "Active Energy",
+        HKQuantityTypeIdentifier.basalEnergyBurned.rawValue: "Resting Energy",
+        HKQuantityTypeIdentifier.appleExerciseTime.rawValue: "Exercise Time",
+        HKQuantityTypeIdentifier.distanceWalkingRunning.rawValue: "Distance",
+        HKQuantityTypeIdentifier.flightsClimbed.rawValue: "Flights Climbed",
+        HKQuantityTypeIdentifier.heartRate.rawValue: "Heart Rate",
+        HKQuantityTypeIdentifier.restingHeartRate.rawValue: "Resting Heart Rate",
+        HKQuantityTypeIdentifier.bodyMass.rawValue: "Weight",
+        HKCategoryTypeIdentifier.sleepAnalysis.rawValue: "Sleep",
+        HKObjectType.workoutType().identifier: "Workouts"
+    ]
+
+    /// Human-readable name for a HealthKit type, used in the permission banner so the person can
+    /// see exactly what's missing instead of a generic "Health access needed."
+    static func displayName(for type: HKObjectType) -> String {
+        friendlyNames[type.identifier] ?? type.identifier
+    }
+
     func requestAuthorization() async throws {
         try await healthStore.requestAuthorization(toShare: [], read: Self.readTypes)
     }
