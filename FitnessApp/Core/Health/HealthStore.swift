@@ -30,6 +30,9 @@ final class HealthStore: ObservableObject {
     /// Timestamp of the last successful refresh (manual or background-triggered), shown in the UI
     /// so it's clear data really is syncing automatically.
     @Published private(set) var lastUpdated: Date?
+    /// The real error text from HealthKit, if the last authorization/refresh attempt failed.
+    /// Shown in the UI so "it's not syncing" can actually be diagnosed instead of guessed at.
+    @Published private(set) var lastErrorMessage: String?
 
     private let authorizationRequestedKey = "healthAuthorizationRequested"
 
@@ -41,6 +44,7 @@ final class HealthStore: ObservableObject {
         #if canImport(HealthKit)
         guard HKHealthStore.isHealthDataAvailable() else {
             status = .unavailable
+            lastErrorMessage = "This device doesn't support Health data (e.g. iPad without Health app)."
             return
         }
 
@@ -60,11 +64,13 @@ final class HealthStore: ObservableObject {
             weeklyTrends = try await fetchedTrends
             status = .ready
             lastUpdated = .now
+            lastErrorMessage = nil
             startAutoSyncIfNeeded()
         } catch HealthKitServiceError.authorizationRequired {
             status = .authorizationRequired
         } catch {
             status = .failed
+            lastErrorMessage = error.localizedDescription
         }
         #else
         status = .unavailable
@@ -76,9 +82,11 @@ final class HealthStore: ObservableObject {
         do {
             try await HealthKitService().requestAuthorization()
             UserDefaults.standard.set(true, forKey: authorizationRequestedKey)
+            lastErrorMessage = nil
             await refresh()
         } catch {
             status = .denied
+            lastErrorMessage = error.localizedDescription
         }
         #else
         status = .unavailable

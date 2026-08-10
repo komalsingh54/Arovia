@@ -89,6 +89,11 @@ struct DashboardView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 Label(statusMessage, systemImage: "heart.text.square")
                                     .font(.headline)
+                                if let error = healthStore.lastErrorMessage {
+                                    Text(error)
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.energy)
+                                }
                                 if healthStore.status == .authorizationRequired || healthStore.status == .denied {
                                     Button("Connect Health") {
                                         Task { await healthStore.requestAuthorization() }

@@ -26,6 +26,11 @@ struct SettingsView: View {
                 }
                 Section("Health") {
                     LabeledContent("Connection", value: healthStatus)
+                    if let error = healthStore.lastErrorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.energy)
+                    }
                     Button(healthStore.status == .ready ? "Refresh Health Data" : "Connect Health") {
                         Task {
                             if healthStore.status == .ready {

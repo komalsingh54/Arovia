@@ -70,6 +70,11 @@ struct HealthOverviewView: View {
                 Text("Grant access to see heart rate, sleep, distance, and weight trends here automatically.")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.secondaryText)
+                if let error = healthStore.lastErrorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.energy)
+                }
                 Button("Connect Health") {
                     Task { await healthStore.requestAuthorization() }
                 }

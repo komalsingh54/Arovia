@@ -84,4 +84,74 @@ struct MealAnalytics {
         }
         return streak
     }
+
+    // MARK: Period insights (Week / Month / Year)
+
+    enum Period: String, CaseIterable, Identifiable {
+        case week, month, year
+        var id: String { rawValue }
+        var title: String { rawValue.capitalized }
+        var dayCount: Int {
+            switch self {
+            case .week: 7
+            case .month: 30
+            case .year: 365
+            }
+        }
+    }
+
+    struct DailyMacros: Identifiable {
+        let date: Date
+        let carbs: Double
+        let fat: Double
+        let protein: Double
+        var id: Date { date }
+    }
+
+    /// One entry per day in the period (oldest first), zero-filled for days without meals so the
+    /// chart's x-axis stays continuous.
+    func dailyMacros(for period: Period) -> [DailyMacros] {
+        guard let start = calendar.date(byAdding: .day, value: -(period.dayCount - 1), to: calendar.startOfDay(for: .now)) else { return [] }
+        return (0..<period.dayCount).compactMap { offset -> DailyMacros? in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: start) else { return nil }
+            let dayMeals = meals(on: day)
+            return DailyMacros(
+                date: day,
+                carbs: dayMeals.reduce(0) { $0 + $1.carbohydratesGrams },
+                fat: dayMeals.reduce(0) { $0 + $1.fatGrams },
+                protein: dayMeals.reduce(0) { $0 + $1.proteinGrams }
+            )
+        }
+    }
+
+    /// Average macros across the period, excluding today and any day with nothing logged —
+    /// mirrors how most nutrition trackers compute "average" so partial/in-progress days don't skew it.
+    func averageMacros(for period: Period) -> (carbs: Double, fat: Double, protein: Double) {
+        let today = calendar.startOfDay(for: .now)
+        let days = dailyMacros(for: period).filter {
+            $0.date != today && ($0.carbs > 0 || $0.fat > 0 || $0.protein > 0)
+        }
+        guard !days.isEmpty else { return (0, 0, 0) }
+        let count = Double(days.count)
+        return (
+            days.reduce(0) { $0 + $1.carbs } / count,
+            days.reduce(0) { $0 + $1.fat } / count,
+            days.reduce(0) { $0 + $1.protein } / count
+        )
+    }
+
+    /// Each macronutrient's share of total calories, using standard 4/9/4 kcal-per-gram factors.
+    func nutrientCaloriePercentages(for period: Period) -> [(name: String, grams: Double, percent: Double)] {
+        let average = averageMacros(for: period)
+        let carbCalories = average.carbs * 4
+        let fatCalories = average.fat * 9
+        let proteinCalories = average.protein * 4
+        let total = carbCalories + fatCalories + proteinCalories
+        guard total > 0 else { return [] }
+        return [
+            ("Carbohydrates", average.carbs, carbCalories / total),
+            ("Fat", average.fat, fatCalories / total),
+            ("Protein", average.protein, proteinCalories / total)
+        ]
+    }
 }
