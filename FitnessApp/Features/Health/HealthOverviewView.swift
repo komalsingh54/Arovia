@@ -36,6 +36,7 @@ struct HealthOverviewView: View {
                     sleepCard
                     activityDistanceCard
                     weightCard
+                    diagnosticsCard
                 }
                 .padding()
             }
@@ -238,6 +239,72 @@ struct HealthOverviewView: View {
         .padding()
         .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+    }
+
+    private var diagnosticsCard: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                DiagnosticRow(label: "HealthKit available on device", value: healthStore.isHealthDataAvailable ? "Yes" : "No")
+                DiagnosticRow(label: "Connection status", value: "\(healthStore.status)")
+                DiagnosticRow(label: "Last successful sync", value: healthStore.lastUpdated?.formatted(date: .abbreviated, time: .standard) ?? "Never")
+                if let error = healthStore.lastErrorMessage {
+                    DiagnosticRow(label: "Last error", value: error)
+                }
+                DiagnosticRow(
+                    label: "Types never granted",
+                    value: healthStore.pendingPermissionNames.isEmpty ? "None — all granted" : healthStore.pendingPermissionNames.joined(separator: ", ")
+                )
+
+                Divider().background(AppTheme.border)
+
+                Text("Raw values from the last fetch")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                DiagnosticRow(label: "Steps", value: "\(Int(healthStore.metrics.steps))")
+                DiagnosticRow(label: "Active energy", value: "\(Int(healthStore.metrics.activeEnergy)) kcal")
+                DiagnosticRow(label: "Resting energy", value: "\(Int(healthStore.metrics.restingEnergy)) kcal")
+                DiagnosticRow(label: "Distance", value: "\(Int(healthStore.metrics.distanceMeters)) m")
+                DiagnosticRow(label: "Heart rate (avg)", value: healthStore.metrics.averageHeartRate.map { "\(Int($0)) bpm" } ?? "nil")
+                DiagnosticRow(label: "Resting heart rate", value: healthStore.metrics.restingHeartRate.map { "\(Int($0)) bpm" } ?? "nil")
+                DiagnosticRow(label: "Sleep", value: healthStore.metrics.sleepHours.map { String(format: "%.2f hrs", $0) } ?? "nil")
+                DiagnosticRow(label: "Weight", value: healthStore.metrics.latestWeightKg.map { String(format: "%.1f kg", $0) } ?? "nil")
+
+                Text("A metric reading 0 or nil here, while Apple's own Health app also shows nothing for it, means there's genuinely no data recorded — not an app bug. If Health.app has data but this doesn't match, screenshot this panel.")
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.8))
+                    .padding(.top, 4)
+
+                Button("Force Refresh") {
+                    Task { await healthStore.refresh() }
+                }
+                .font(.footnote.weight(.semibold))
+            }
+            .padding(.top, 8)
+        } label: {
+            Label("Diagnostics", systemImage: "stethoscope")
+                .font(.subheadline.weight(.semibold))
+        }
+        .padding()
+        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+    }
+}
+
+private struct DiagnosticRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
+            Spacer()
+            Text(value)
+                .font(.caption.weight(.medium))
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 200, alignment: .trailing)
+        }
     }
 }
 

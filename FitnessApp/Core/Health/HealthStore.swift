@@ -47,6 +47,16 @@ final class HealthStore: ObservableObject {
     private let observerService = HealthKitObserverService()
     #endif
 
+    /// Whether this device supports HealthKit at all (false on e.g. some iPads). Exposed so views
+    /// can show it in diagnostics without importing HealthKit themselves.
+    var isHealthDataAvailable: Bool {
+        #if canImport(HealthKit)
+        HKHealthStore.isHealthDataAvailable()
+        #else
+        false
+        #endif
+    }
+
     func refresh() async {
         #if canImport(HealthKit)
         guard HKHealthStore.isHealthDataAvailable() else {
