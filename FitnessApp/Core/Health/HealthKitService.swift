@@ -119,6 +119,10 @@ struct HealthKitService {
             let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: false)
             let query = HKSampleQuery(sampleType: .workoutType(), predicate: nil, limit: 10, sortDescriptors: [sortDescriptor]) { _, samples, error in
                 if let error {
+                    if isNoDataError(error) {
+                        continuation.resume(returning: [])
+                        return
+                    }
                     continuation.resume(throwing: error)
                     return
                 }
@@ -190,6 +194,10 @@ struct HealthKitService {
             )
             query.initialResultsHandler = { _, results, error in
                 if let error {
+                    if isNoDataError(error) {
+                        continuation.resume(returning: [])
+                        return
+                    }
                     continuation.resume(throwing: error)
                     return
                 }
@@ -247,6 +255,10 @@ struct HealthKitService {
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(sampleType: sleepType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
                 if let error {
+                    if isNoDataError(error) {
+                        continuation.resume(returning: nil)
+                        return
+                    }
                     continuation.resume(throwing: error)
                     return
                 }
@@ -280,6 +292,10 @@ struct HealthKitService {
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(sampleType: bodyMass, predicate: predicate, limit: 1, sortDescriptors: [sort]) { _, samples, error in
                 if let error {
+                    if isNoDataError(error) {
+                        continuation.resume(returning: nil)
+                        return
+                    }
                     continuation.resume(throwing: error)
                     return
                 }
@@ -290,12 +306,26 @@ struct HealthKitService {
         }
     }
 
+    /// HealthKit throws HKError.noData ("No data available for the specified predicate") for
+    /// several query types — most commonly discrete statistics (average/min/max) — when literally
+    /// zero samples match, e.g. no Apple Watch worn today so there's no heart rate data. This is
+    /// an entirely normal, expected state, not a failure; every query below treats it as "no
+    /// reading" rather than letting it fail the whole fetch (which is the bug that caused Health
+    /// status to show "failed" with every metric blanked out, even ones with real data).
+    private func isNoDataError(_ error: Error) -> Bool {
+        (error as? HKError)?.code == .noData
+    }
+
     // MARK: Low-level helpers
 
     private func quantitySum(for type: HKQuantityType, unit: HKUnit, predicate: NSPredicate) async throws -> Double {
         try await withCheckedThrowingContinuation { continuation in
             let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, result, error in
                 if let error {
+                    if isNoDataError(error) {
+                        continuation.resume(returning: 0)
+                        return
+                    }
                     continuation.resume(throwing: error)
                     return
                 }
@@ -309,6 +339,10 @@ struct HealthKitService {
         try await withCheckedThrowingContinuation { continuation in
             let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .discreteAverage) { _, result, error in
                 if let error {
+                    if isNoDataError(error) {
+                        continuation.resume(returning: nil)
+                        return
+                    }
                     continuation.resume(throwing: error)
                     return
                 }
@@ -322,6 +356,10 @@ struct HealthKitService {
         try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(sampleType: .workoutType(), predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
                 if let error {
+                    if isNoDataError(error) {
+                        continuation.resume(returning: 0)
+                        return
+                    }
                     continuation.resume(throwing: error)
                     return
                 }
