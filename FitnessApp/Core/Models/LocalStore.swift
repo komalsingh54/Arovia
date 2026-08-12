@@ -16,26 +16,35 @@ final class LocalStore: ObservableObject {
     @Published private(set) var goals: [FitnessGoal] = []
     @Published private(set) var journalEntries: [JournalEntry] = []
     @Published private(set) var mealEntries: [MealEntry] = []
+    @Published private(set) var scannedFoods: [FoodItem] = []
 
     private let goalsRepository: GoalsRepository
     private let journalRepository: JournalRepository
     private let mealsRepository: MealsRepository
+    private let scannedFoodRepository: ScannedFoodRepository
     private let cloudKitSyncService: CloudKitSyncing
 
     init(dependencies: AppDependencies) {
         self.goalsRepository = dependencies.goalsRepository
         self.journalRepository = dependencies.journalRepository
         self.mealsRepository = dependencies.mealsRepository
+        self.scannedFoodRepository = dependencies.scannedFoodRepository
         self.cloudKitSyncService = dependencies.cloudKitSyncService
         reloadAll()
         Task { await syncWithCloud() }
     }
 
     /// Preview/test-friendly initializer that skips CloudKit entirely.
-    init(goalsRepository: GoalsRepository, journalRepository: JournalRepository, mealsRepository: MealsRepository) {
+    init(
+        goalsRepository: GoalsRepository,
+        journalRepository: JournalRepository,
+        mealsRepository: MealsRepository,
+        scannedFoodRepository: ScannedFoodRepository
+    ) {
         self.goalsRepository = goalsRepository
         self.journalRepository = journalRepository
         self.mealsRepository = mealsRepository
+        self.scannedFoodRepository = scannedFoodRepository
         self.cloudKitSyncService = NoopCloudKitSyncService()
         reloadAll()
     }
@@ -124,6 +133,23 @@ final class LocalStore: ObservableObject {
         }
     }
 
+    // MARK: Scanned foods (barcode cache)
+
+    /// Checks the local cache first — avoids a network call for barcodes already looked up.
+    func cachedFood(forBarcode barcode: String) -> FoodItem? {
+        (try? scannedFoodRepository.lookup(barcode: barcode)) ?? nil
+    }
+
+    func cacheScannedFood(_ food: FoodItem, barcode: String) {
+        do {
+            try scannedFoodRepository.save(food, barcode: barcode)
+            scannedFoods.removeAll { $0.id == food.id }
+            scannedFoods.insert(food, at: 0)
+        } catch {
+            // Cache is best-effort — the food can still be logged even if caching fails.
+        }
+    }
+
     // MARK: Sync
 
     /// Called after every local mutation and can also be triggered from pull-to-refresh.
@@ -135,5 +161,6 @@ final class LocalStore: ObservableObject {
         goals = (try? goalsRepository.fetchAll()) ?? []
         journalEntries = ((try? journalRepository.fetchAll()) ?? []).sorted { $0.date > $1.date }
         mealEntries = ((try? mealsRepository.fetchAll()) ?? []).sorted { $0.date > $1.date }
+        scannedFoods = (try? scannedFoodRepository.fetchAll()) ?? []
     }
 }

@@ -14,6 +14,9 @@ struct FoodSearchView: View {
     @State private var query = ""
     @State private var selectedFood: FoodItem?
     @State private var isCreatingCustom = false
+    @State private var isScanningBarcode = false
+    @State private var isLookingUpBarcode = false
+    @State private var barcodeErrorMessage: String?
 
     private var results: [FoodItem] {
         query.isEmpty ? FoodLibrary.suggestions : FoodLibrary.search(query)
@@ -43,6 +46,25 @@ struct FoodSearchView: View {
     var body: some View {
         NavigationStack {
             List {
+                if isLookingUpBarcode {
+                    Section {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Looking up product…")
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                    }
+                }
+
+                if !localStore.scannedFoods.isEmpty && query.isEmpty {
+                    Section("Previously Scanned") {
+                        ForEach(localStore.scannedFoods.prefix(5)) { food in
+                            FoodRow(food: food) { selectedFood = food }
+                        }
+                    }
+                }
+
                 if query.isEmpty && !recentFoods.isEmpty {
                     Section("Recent") {
                         ForEach(recentFoods) { food in
@@ -53,7 +75,7 @@ struct FoodSearchView: View {
 
                 Section(query.isEmpty ? "Suggestions" : "Results") {
                     if results.isEmpty {
-                        Text("No matches — try a different search, or create a custom entry.")
+                        Text("No matches — try a different search, scan a barcode, or create a custom entry.")
                             .font(.footnote)
                             .foregroundStyle(AppTheme.secondaryText)
                     } else {
@@ -64,6 +86,11 @@ struct FoodSearchView: View {
                 }
 
                 Section {
+                    Button {
+                        isScanningBarcode = true
+                    } label: {
+                        Label("Scan Barcode", systemImage: "barcode.viewfinder")
+                    }
                     Button {
                         isCreatingCustom = true
                     } label: {
@@ -87,6 +114,44 @@ struct FoodSearchView: View {
                     dismiss()
                 }
             }
+            .sheet(isPresented: $isScanningBarcode) {
+                BarcodeScannerView { barcode in
+                    isScanningBarcode = false
+                    Task { await handleScannedBarcode(barcode) }
+                }
+            }
+            .alert(
+                "Product Not Found",
+                isPresented: Binding(get: { barcodeErrorMessage != nil }, set: { if !$0 { barcodeErrorMessage = nil } })
+            ) {
+                Button("Add Manually") {
+                    barcodeErrorMessage = nil
+                    isCreatingCustom = true
+                }
+                Button("Cancel", role: .cancel) { barcodeErrorMessage = nil }
+            } message: {
+                Text(barcodeErrorMessage ?? "")
+            }
+        }
+    }
+
+    /// Checks the local cache first (instant, works offline), then falls back to Open Food Facts.
+    /// Every successful lookup is cached so re-scanning the same product never needs the network again.
+    private func handleScannedBarcode(_ barcode: String) async {
+        if let cached = localStore.cachedFood(forBarcode: barcode) {
+            selectedFood = cached
+            return
+        }
+
+        isLookingUpBarcode = true
+        defer { isLookingUpBarcode = false }
+
+        do {
+            let food = try await OpenFoodFactsService().fetchProduct(barcode: barcode)
+            localStore.cacheScannedFood(food, barcode: barcode)
+            selectedFood = food
+        } catch {
+            barcodeErrorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 }
