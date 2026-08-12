@@ -18,6 +18,13 @@ struct FoodSearchView: View {
     @State private var isLookingUpBarcode = false
     @State private var barcodeErrorMessage: String?
 
+    @State private var onlineResults: [FoodItem] = []
+    @State private var isSearchingOnline = false
+    @State private var onlineSearchError: String?
+    /// Tracks which query the current online results belong to, so stale results from a previous
+    /// search don't linger on screen after the person changes what they typed.
+    @State private var lastOnlineSearchQuery: String?
+
     private var results: [FoodItem] {
         query.isEmpty ? FoodLibrary.suggestions : FoodLibrary.search(query)
     }
@@ -73,9 +80,9 @@ struct FoodSearchView: View {
                     }
                 }
 
-                Section(query.isEmpty ? "Suggestions" : "Results") {
+                Section(query.isEmpty ? "Suggestions" : "In Arovia's Library") {
                     if results.isEmpty {
-                        Text("No matches — try a different search, scan a barcode, or create a custom entry.")
+                        Text(query.isEmpty ? "Start typing, scan a barcode, or search Open Food Facts online." : "No local matches for \"\(query)\".")
                             .font(.footnote)
                             .foregroundStyle(AppTheme.secondaryText)
                     } else {
@@ -83,6 +90,10 @@ struct FoodSearchView: View {
                             FoodRow(food: food) { selectedFood = food }
                         }
                     }
+                }
+
+                if !query.isEmpty {
+                    onlineSearchSection
                 }
 
                 Section {
@@ -99,6 +110,17 @@ struct FoodSearchView: View {
                 }
             }
             .searchable(text: $query, prompt: "Search for food")
+            .onSubmit(of: .search) {
+                Task { await searchOnline() }
+            }
+            .onChange(of: query) {
+                // Clear stale results once the text no longer matches what was searched, rather
+                // than leaving a mismatched list on screen.
+                if query != lastOnlineSearchQuery {
+                    onlineResults = []
+                    onlineSearchError = nil
+                }
+            }
             .navigationTitle("Add to \(mealType.title)")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -135,6 +157,41 @@ struct FoodSearchView: View {
         }
     }
 
+    /// Shown once the person has typed something — lets them reach past Arovia's small local
+    /// library into Open Food Facts' full database when a barcode isn't available or wasn't found.
+    private var onlineSearchSection: some View {
+        Section("Open Food Facts") {
+            if isSearchingOnline {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Searching Open Food Facts…")
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+            } else if let onlineSearchError {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(onlineSearchError)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    Button("Try Again") {
+                        Task { await searchOnline() }
+                    }
+                    .font(.footnote.weight(.semibold))
+                }
+            } else if lastOnlineSearchQuery == query && !onlineResults.isEmpty {
+                ForEach(onlineResults) { food in
+                    FoodRow(food: food) { selectedFood = food }
+                }
+            } else {
+                Button {
+                    Task { await searchOnline() }
+                } label: {
+                    Label("Search Open Food Facts for \"\(query)\"", systemImage: "magnifyingglass")
+                }
+            }
+        }
+    }
+
     /// Checks the local cache first (instant, works offline), then falls back to Open Food Facts.
     /// Every successful lookup is cached so re-scanning the same product never needs the network again.
     private func handleScannedBarcode(_ barcode: String) async {
@@ -152,6 +209,33 @@ struct FoodSearchView: View {
             selectedFood = food
         } catch {
             barcodeErrorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
+    }
+
+    /// Free-text search against Open Food Facts for when there's no barcode to scan, or the
+    /// barcode wasn't found. Results with a barcode are cached the same way scanned items are.
+    private func searchOnline() async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        isSearchingOnline = true
+        onlineSearchError = nil
+        defer { isSearchingOnline = false }
+
+        do {
+            let foods = try await OpenFoodFactsService().searchProducts(query: trimmed)
+            for item in foods {
+                if case let .barcode(code) = item.source {
+                    localStore.cacheScannedFood(item, barcode: code)
+                }
+            }
+            onlineResults = foods
+            lastOnlineSearchQuery = query
+            if foods.isEmpty {
+                onlineSearchError = "No Open Food Facts results for \"\(trimmed)\". Try a shorter or more general term."
+            }
+        } catch {
+            onlineSearchError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 }

@@ -11,6 +11,7 @@ import Foundation
 enum OpenFoodFactsError: Error, LocalizedError {
     case invalidBarcode
     case productNotFound
+    case emptyQuery
     case network(Error)
     case decoding(Error)
 
@@ -18,6 +19,7 @@ enum OpenFoodFactsError: Error, LocalizedError {
         switch self {
         case .invalidBarcode: "That doesn't look like a valid barcode."
         case .productNotFound: "No product found for this barcode in Open Food Facts. You can still add it as a custom food."
+        case .emptyQuery: "Type at least 2 characters to search."
         case .network(let error): "Couldn't reach Open Food Facts: \(error.localizedDescription)"
         case .decoding: "Open Food Facts returned data in an unexpected format."
         }
@@ -44,7 +46,7 @@ struct OpenFoodFactsService: Sendable {
         }
 
         var components = URLComponents(string: "https://world.openfoodfacts.org/api/v2/product/\(trimmed).json")
-        components?.queryItems = [URLQueryItem(name: "fields", value: "product_name,brands,serving_size,serving_quantity,nutriments")]
+        components?.queryItems = [URLQueryItem(name: "fields", value: "code,product_name,brands,serving_size,serving_quantity,nutriments")]
 
         guard let url = components?.url else {
             throw OpenFoodFactsError.invalidBarcode
@@ -75,6 +77,58 @@ struct OpenFoodFactsService: Sendable {
 
         return product.asFoodItem(barcode: trimmed)
     }
+
+    /// Text search for when there's no barcode to scan (or it wasn't found) — same underlying
+    /// database, via Open Food Facts' legacy search endpoint (still the simplest documented way
+    /// to do free-text search; the newer search-a-licious service requires a separate host).
+    /// Uses the UK-localized subdomain per the reference site (uk.openfoodfacts.org) so British
+    /// products surface first; the underlying database searched is the same global one.
+    func searchProducts(query: String) async throws -> [FoodItem] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count >= 2 else {
+            throw OpenFoodFactsError.emptyQuery
+        }
+
+        var components = URLComponents(string: "https://uk.openfoodfacts.org/cgi/search.pl")
+        components?.queryItems = [
+            URLQueryItem(name: "search_terms", value: trimmed),
+            URLQueryItem(name: "search_simple", value: "1"),
+            URLQueryItem(name: "action", value: "process"),
+            URLQueryItem(name: "json", value: "1"),
+            URLQueryItem(name: "page_size", value: "25"),
+            URLQueryItem(name: "sort_by", value: "unique_scans_n"),
+            URLQueryItem(name: "fields", value: "code,product_name,brands,serving_size,serving_quantity,nutriments")
+        ]
+
+        guard let url = components?.url else {
+            throw OpenFoodFactsError.emptyQuery
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 15
+
+        let data: Data
+        do {
+            let (responseData, _) = try await session.data(for: request)
+            data = responseData
+        } catch {
+            throw OpenFoodFactsError.network(error)
+        }
+
+        let decoded: OFFSearchResponse
+        do {
+            decoded = try JSONDecoder().decode(OFFSearchResponse.self, from: data)
+        } catch {
+            throw OpenFoodFactsError.decoding(error)
+        }
+
+        // Skip entries with no name at all — common for incomplete community-submitted products
+        // and useless to show in results.
+        return decoded.products
+            .filter { $0.productName?.isEmpty == false }
+            .map { $0.asFoodItem(barcode: $0.code) }
+    }
 }
 
 // MARK: - Response models
@@ -86,7 +140,12 @@ private struct OFFProductResponse: Decodable {
     let product: OFFProduct?
 }
 
+private struct OFFSearchResponse: Decodable {
+    let products: [OFFProduct]
+}
+
 private struct OFFProduct: Decodable {
+    let code: String?
     let productName: String?
     let brands: String?
     let servingSize: String?
@@ -94,6 +153,7 @@ private struct OFFProduct: Decodable {
     let nutriments: OFFNutriments?
 
     enum CodingKeys: String, CodingKey {
+        case code
         case productName = "product_name"
         case brands
         case servingSize = "serving_size"
@@ -101,10 +161,14 @@ private struct OFFProduct: Decodable {
         case nutriments
     }
 
-    func asFoodItem(barcode: String) -> FoodItem {
+    /// `barcode` is optional because search results occasionally lack a code; those items still
+    /// display and log fine, they just aren't cached under a barcode key (`FoodItem.Source.local`).
+    func asFoodItem(barcode: String?) -> FoodItem {
         let name = (productName?.isEmpty == false ? productName : nil) ?? "Unknown Product"
         let brandName = brands?.components(separatedBy: ",").first?.trimmingCharacters(in: .whitespaces)
         let servingQuantity = servingQuantity.flatMap { $0 > 0 ? $0 : nil }
+        let source: FoodItem.Source = barcode.map { .barcode(code: $0) } ?? .local
+        let id = barcode.map { "barcode-\($0)" } ?? UUID().uuidString
 
         // Prefer OFF's real per-serving figures when present; otherwise scale the per-100g values
         // down to the serving size; if there's no serving size at all, fall back to "100g" as the
@@ -112,6 +176,7 @@ private struct OFFProduct: Decodable {
         if let servingQuantity {
             let scale = servingQuantity / 100
             return FoodItem(
+                id: id,
                 name: name,
                 brand: brandName,
                 servingDescription: servingSize ?? "\(Int(servingQuantity))g",
@@ -120,11 +185,12 @@ private struct OFFProduct: Decodable {
                 proteinGrams: nutriments?.proteinsServing ?? ((nutriments?.proteins100g ?? 0) * scale),
                 carbohydratesGrams: nutriments?.carbohydratesServing ?? ((nutriments?.carbohydrates100g ?? 0) * scale),
                 fatGrams: nutriments?.fatServing ?? ((nutriments?.fat100g ?? 0) * scale),
-                source: .barcode(code: barcode)
+                source: source
             )
         }
 
         return FoodItem(
+            id: id,
             name: name,
             brand: brandName,
             servingDescription: "100g",
@@ -133,7 +199,7 @@ private struct OFFProduct: Decodable {
             proteinGrams: nutriments?.proteins100g ?? 0,
             carbohydratesGrams: nutriments?.carbohydrates100g ?? 0,
             fatGrams: nutriments?.fat100g ?? 0,
-            source: .barcode(code: barcode)
+            source: source
         )
     }
 }
