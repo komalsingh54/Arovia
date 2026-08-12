@@ -306,14 +306,14 @@ struct HealthKitService {
         }
     }
 
-    /// HealthKit throws HKError.noData ("No data available for the specified predicate") for
+    /// HealthKit throws HKError.errorNoData ("No data available for the specified predicate") for
     /// several query types — most commonly discrete statistics (average/min/max) — when literally
     /// zero samples match, e.g. no Apple Watch worn today so there's no heart rate data. This is
     /// an entirely normal, expected state, not a failure; every query below treats it as "no
     /// reading" rather than letting it fail the whole fetch (which is the bug that caused Health
     /// status to show "failed" with every metric blanked out, even ones with real data).
     private func isNoDataError(_ error: Error) -> Bool {
-        (error as? HKError)?.code == .noData
+        (error as? HKError)?.code == .errorNoData
     }
 
     // MARK: Low-level helpers
