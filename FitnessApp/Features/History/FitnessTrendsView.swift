@@ -9,6 +9,7 @@ import Charts
 struct FitnessTrendsView: View {
     @EnvironmentObject private var healthStore: HealthStore
     @EnvironmentObject private var localStore: LocalStore
+    @State private var selectedDate = Date.now
 
     var body: some View {
         ScrollView {
@@ -48,7 +49,9 @@ struct FitnessTrendsView: View {
 
                 JournalBarChart(entries: localStore.journalEntries)
 
-                JournalCalendar(entries: localStore.journalEntries)
+                JournalCalendar(entries: localStore.journalEntries, selectedDate: $selectedDate)
+
+                SelectedDayDetail(date: selectedDate, entries: localStore.journalEntries, trends: healthStore.weeklyTrends)
             }
             .padding()
         }
@@ -221,6 +224,7 @@ private struct CategoryCount: Identifiable {
 
 private struct JournalCalendar: View {
     let entries: [JournalEntry]
+    @Binding var selectedDate: Date
     private let calendar = Calendar.current
 
     var body: some View {
@@ -234,13 +238,25 @@ private struct JournalCalendar: View {
                 ForEach(Array(monthDays.enumerated()), id: \.offset) { _, date in
                     if let date {
                         let hasEntry = entries.contains { calendar.isDate($0.date, inSameDayAs: date) }
-                        Text(date, format: .dateTime.day())
-                            .font(.caption.weight(.semibold))
-                            .frame(width: 30, height: 30)
-                            .background(hasEntry ? AppTheme.tint : .clear, in: Circle())
-                            .foregroundStyle(hasEntry ? AppTheme.screenBackground : .primary)
-                            .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
-                            .accessibilityValue(hasEntry ? "Journal entry recorded" : "No journal entry")
+                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                        Button {
+                            selectedDate = date
+                        } label: {
+                            Text(date, format: .dateTime.day())
+                                .font(.caption.weight(.semibold))
+                                .frame(width: 30, height: 30)
+                                .background(hasEntry ? AppTheme.tint : .clear, in: Circle())
+                                .foregroundStyle(hasEntry ? AppTheme.screenBackground : .primary)
+                                .overlay {
+                                    if isSelected {
+                                        Circle().stroke(AppTheme.tint, lineWidth: 2)
+                                    }
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
+                        .accessibilityValue(hasEntry ? "Journal entry recorded" : "No journal entry")
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     } else {
                         Color.clear.frame(width: 30, height: 30)
                     }
@@ -258,6 +274,89 @@ private struct JournalCalendar: View {
         let weekdayOffset = (calendar.component(.weekday, from: monthStart) - calendar.firstWeekday + 7) % 7
         return Array(repeating: nil, count: weekdayOffset) + range.compactMap {
             calendar.date(byAdding: .day, value: $0 - 1, to: monthStart)
+        }
+    }
+}
+
+/// Shown below the calendar once a date is tapped — pulls from the same journal entries and
+/// weekly trend arrays that back the charts above, so selecting a date actually reflects real data
+/// instead of the calendar being a decorative, non-interactive grid.
+private struct SelectedDayDetail: View {
+    let date: Date
+    let entries: [JournalEntry]
+    let trends: WeeklyHealthTrends
+    private let calendar = Calendar.current
+
+    private var dayEntries: [JournalEntry] {
+        entries.filter { calendar.isDate($0.date, inSameDayAs: date) }
+    }
+
+    private func value(in points: [DailyMetricPoint]) -> Double? {
+        points.first { calendar.isDate($0.date, inSameDayAs: date) }?.value
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(date, format: .dateTime.weekday(.wide).month(.wide).day())
+                .font(.title3.weight(.bold))
+
+            let steps = value(in: trends.steps)
+            let distance = value(in: trends.distanceMeters)
+            let restingHR = value(in: trends.restingHeartRate)
+            let sleep = value(in: trends.sleepHours)
+            let hasMetrics = [steps, distance, restingHR, sleep].contains { ($0 ?? 0) > 0 }
+
+            if hasMetrics {
+                HStack(spacing: 16) {
+                    if let steps, steps > 0 { DayStat(label: "Steps", value: "\(Int(steps))") }
+                    if let distance, distance > 0 { DayStat(label: "Distance", value: String(format: "%.1f km", distance / 1000)) }
+                    if let restingHR, restingHR > 0 { DayStat(label: "Resting HR", value: "\(Int(restingHR)) bpm") }
+                    if let sleep, sleep > 0 { DayStat(label: "Sleep", value: String(format: "%.1f hrs", sleep)) }
+                }
+            } else {
+                Text("No Health metrics for this day — only the last 7 days are charted.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            if dayEntries.isEmpty {
+                Text("No journal entries logged this day.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.secondaryText)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(dayEntries) { entry in
+                        HStack(alignment: .top) {
+                            Label(entry.title, systemImage: entry.category.systemImage)
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text(entry.date, format: .dateTime.hour().minute())
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                        if !entry.details.isEmpty {
+                            Text(entry.details)
+                                .font(.footnote)
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+    }
+}
+
+private struct DayStat: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.subheadline.weight(.bold))
+            Text(label).font(.caption2).foregroundStyle(AppTheme.secondaryText)
         }
     }
 }
