@@ -49,6 +49,7 @@ struct DailyMetricPoint: Identifiable, Equatable {
 struct WeeklyHealthTrends: Equatable {
     var activeEnergy: [DailyMetricPoint] = []
     var steps: [DailyMetricPoint] = []
+    var exerciseMinutes: [DailyMetricPoint] = []
     var distanceMeters: [DailyMetricPoint] = []
     var restingHeartRate: [DailyMetricPoint] = []
     var sleepHours: [DailyMetricPoint] = []

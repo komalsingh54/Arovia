@@ -21,7 +21,13 @@ struct FitnessTrendsView: View {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
 
-                ActivityRingsView(metrics: healthStore.metrics)
+                ActivityRingsView(
+                    date: selectedDate,
+                    steps: dayValue(in: healthStore.weeklyTrends.steps, on: selectedDate, liveFallback: healthStore.metrics.steps),
+                    activeEnergy: dayValue(in: healthStore.weeklyTrends.activeEnergy, on: selectedDate, liveFallback: healthStore.metrics.activeEnergy),
+                    exerciseMinutes: dayValue(in: healthStore.weeklyTrends.exerciseMinutes, on: selectedDate, liveFallback: healthStore.metrics.exerciseMinutes),
+                    isInChartedRange: isDateInChartedRange(selectedDate)
+                )
 
                 WeeklyTrendChart(
                     title: "Distance",
@@ -60,6 +66,21 @@ struct FitnessTrendsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await healthStore.refresh() }
         .refreshable { await healthStore.refresh() }
+    }
+
+    /// Looks up a day's value from the 7-day trend series (which is what actually changes when a
+    /// different calendar date is selected). Falls back to the live `metrics` snapshot only for
+    /// today, and only if the trend array hasn't loaded yet — otherwise a selected date would
+    /// silently keep showing today's numbers, which was the original bug.
+    private func dayValue(in points: [DailyMetricPoint], on date: Date, liveFallback: Double) -> Double {
+        if let match = points.first(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) {
+            return match.value
+        }
+        return Calendar.current.isDateInToday(date) ? liveFallback : 0
+    }
+
+    private func isDateInChartedRange(_ date: Date) -> Bool {
+        healthStore.weeklyTrends.steps.contains { Calendar.current.isDate($0.date, inSameDayAs: date) }
     }
 }
 
@@ -108,45 +129,61 @@ private struct WeeklyTrendChart: View {
 }
 
 private struct ActivityRingsView: View {
-    let metrics: DailyMetrics
+    let date: Date
+    let steps: Double
+    let activeEnergy: Double
+    let exerciseMinutes: Double
+    let isInChartedRange: Bool
 
-    private var moveProgress: Double { min(metrics.activeEnergy / 500, 1) }
-    private var exerciseProgress: Double { min(metrics.exerciseMinutes / 30, 1) }
-    private var standProgress: Double { min(metrics.steps / 10_000, 1) }
+    private var moveProgress: Double { min(activeEnergy / 500, 1) }
+    private var exerciseProgress: Double { min(exerciseMinutes / 30, 1) }
+    private var standProgress: Double { min(steps / 10_000, 1) }
+    private var isToday: Bool { Calendar.current.isDateInToday(date) }
+
+    private var titleText: String {
+        isToday ? "Today’s Activity" : date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+    }
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Today’s Activity")
+            Text(titleText)
                 .font(.title3.weight(.bold))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            ZStack {
-                AnimatedRing(progress: standProgress, color: AppTheme.tint, lineWidth: 14)
-                    .frame(width: 208, height: 208)
-                AnimatedRing(progress: exerciseProgress, color: .cyan, lineWidth: 14)
-                    .frame(width: 164, height: 164)
-                AnimatedRing(progress: moveProgress, color: AppTheme.energy, lineWidth: 14, celebratesCompletion: true)
-                    .frame(width: 120, height: 120)
-                VStack(spacing: 2) {
-                    Text("MOVE")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(AppTheme.secondaryText)
-                    AnimatedNumberText(value: metrics.activeEnergy)
-                        .font(.title.bold())
-                    Text("kcal")
-                        .font(.caption)
-                        .foregroundStyle(AppTheme.secondaryText)
+            if !isInChartedRange && !isToday {
+                Text("Only the last 7 days have activity data charted here — select a more recent date to see rings for it.")
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                ZStack {
+                    AnimatedRing(progress: standProgress, color: AppTheme.tint, lineWidth: 14)
+                        .frame(width: 208, height: 208)
+                    AnimatedRing(progress: exerciseProgress, color: .cyan, lineWidth: 14)
+                        .frame(width: 164, height: 164)
+                    AnimatedRing(progress: moveProgress, color: AppTheme.energy, lineWidth: 14, celebratesCompletion: true)
+                        .frame(width: 120, height: 120)
+                    VStack(spacing: 2) {
+                        Text("MOVE")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(AppTheme.secondaryText)
+                        AnimatedNumberText(value: activeEnergy)
+                            .font(.title.bold())
+                        Text("kcal")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                    }
                 }
-            }
-            .frame(height: 220)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Today’s activity rings")
-            .accessibilityValue("\(Int(moveProgress * 100)) percent move, \(Int(exerciseProgress * 100)) percent exercise, \(Int(standProgress * 100)) percent steps")
+                .frame(height: 220)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(titleText) activity rings")
+                .accessibilityValue("\(Int(moveProgress * 100)) percent move, \(Int(exerciseProgress * 100)) percent exercise, \(Int(standProgress * 100)) percent steps")
 
-            HStack {
-                RingLegend(title: "Move", value: "\(Int(metrics.activeEnergy))/500 kcal", color: AppTheme.energy)
-                RingLegend(title: "Exercise", value: "\(Int(metrics.exerciseMinutes))/30 min", color: .cyan)
-                RingLegend(title: "Steps", value: "\(Int(metrics.steps))/10k", color: AppTheme.tint)
+                HStack {
+                    RingLegend(title: "Move", value: "\(Int(activeEnergy))/500 kcal", color: AppTheme.energy)
+                    RingLegend(title: "Exercise", value: "\(Int(exerciseMinutes))/30 min", color: .cyan)
+                    RingLegend(title: "Steps", value: "\(Int(steps))/10k", color: AppTheme.tint)
+                }
             }
         }
         .padding()
