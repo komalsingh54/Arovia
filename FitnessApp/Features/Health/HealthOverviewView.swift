@@ -31,12 +31,12 @@ struct HealthOverviewView: View {
                         connectHealthCard
                     }
 
-                    energyBalanceCard
-                    heartRateCard
-                    sleepCard
-                    activityDistanceCard
-                    weightCard
-                    diagnosticsCard
+                    energyBalanceCard.staggeredAppear(0)
+                    heartRateCard.staggeredAppear(1)
+                    sleepCard.staggeredAppear(2)
+                    activityDistanceCard.staggeredAppear(3)
+                    weightCard.staggeredAppear(4)
+                    diagnosticsCard.staggeredAppear(5)
                 }
                 .padding()
             }
@@ -53,9 +53,12 @@ struct HealthOverviewView: View {
             Text("Health")
                 .font(.largeTitle.weight(.bold))
             if let lastUpdated = healthStore.lastUpdated {
-                Text("Auto-synced from Apple Health · updated \(lastUpdated.formatted(date: .omitted, time: .shortened))")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText)
+                HStack(spacing: 5) {
+                    PulseIndicator(color: AppTheme.tint, size: 6)
+                    Text("Auto-synced from Apple Health · updated \(lastUpdated.formatted(date: .omitted, time: .shortened))")
+                }
+                .font(.caption)
+                .foregroundStyle(AppTheme.secondaryText)
             } else {
                 Text("A complete view of your body's numbers, synced from Apple Health.")
                     .foregroundStyle(AppTheme.secondaryText)

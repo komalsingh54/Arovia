@@ -121,14 +121,17 @@ private struct ActivityRingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             ZStack {
-                ActivityRing(progress: standProgress, color: AppTheme.tint, diameter: 208)
-                ActivityRing(progress: exerciseProgress, color: .cyan, diameter: 164)
-                ActivityRing(progress: moveProgress, color: AppTheme.energy, diameter: 120)
+                AnimatedRing(progress: standProgress, color: AppTheme.tint, lineWidth: 14)
+                    .frame(width: 208, height: 208)
+                AnimatedRing(progress: exerciseProgress, color: .cyan, lineWidth: 14)
+                    .frame(width: 164, height: 164)
+                AnimatedRing(progress: moveProgress, color: AppTheme.energy, lineWidth: 14, celebratesCompletion: true)
+                    .frame(width: 120, height: 120)
                 VStack(spacing: 2) {
                     Text("MOVE")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(AppTheme.secondaryText)
-                    Text("\(metrics.activeEnergy.formatted(.number.precision(.fractionLength(0))))")
+                    AnimatedNumberText(value: metrics.activeEnergy)
                         .font(.title.bold())
                     Text("kcal")
                         .font(.caption)
@@ -149,25 +152,6 @@ private struct ActivityRingsView: View {
         .padding()
         .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
-    }
-}
-
-private struct ActivityRing: View {
-    let progress: Double
-    let color: Color
-    let diameter: CGFloat
-
-    var body: some View {
-        Circle()
-            .stroke(color.opacity(0.14), lineWidth: 14)
-            .frame(width: diameter, height: diameter)
-            .overlay {
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(color, style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: diameter, height: diameter)
-            }
     }
 }
 

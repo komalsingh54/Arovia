@@ -55,12 +55,7 @@ struct FoodSearchView: View {
             List {
                 if isLookingUpBarcode {
                     Section {
-                        HStack(spacing: 10) {
-                            ProgressView()
-                            Text("Looking up product…")
-                                .font(.footnote)
-                                .foregroundStyle(AppTheme.secondaryText)
-                        }
+                        PulseLoadingRow(text: "Looking up product…")
                     }
                 }
 
@@ -162,12 +157,7 @@ struct FoodSearchView: View {
     private var onlineSearchSection: some View {
         Section("Open Food Facts") {
             if isSearchingOnline {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text("Searching Open Food Facts…")
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.secondaryText)
-                }
+                PulseLoadingRow(text: "Searching Open Food Facts…")
             } else if let onlineSearchError {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(onlineSearchError)
@@ -314,6 +304,7 @@ private struct FoodQuantityView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
+                        Haptic.success()
                         localStore.add(meal: scaledEntry)
                         onSaved()
                     }

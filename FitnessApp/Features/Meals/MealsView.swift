@@ -95,7 +95,10 @@ struct MealsView: View {
             ForEach(days, id: \.self) { day in
                 let selected = calendar.isDate(day, inSameDayAs: selectedDate)
                 Button {
-                    selectedDate = day
+                    Haptic.light()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                        selectedDate = day
+                    }
                 } label: {
                     VStack(spacing: 6) {
                         Text(day, format: .dateTime.weekday(.narrow))
@@ -107,8 +110,9 @@ struct MealsView: View {
                     .padding(.vertical, 10)
                     .background(selected ? AppTheme.tint : AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .foregroundStyle(selected ? AppTheme.screenBackground : .primary)
+                    .scaleEffect(selected ? 1.05 : 1)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
             }
         }
     }
@@ -123,9 +127,13 @@ struct MealsView: View {
     private var goalRings: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             GoalRingCard(title: "Calories", value: caloriesConsumed, target: dailyCalorieTarget, unit: "", color: AppTheme.energy)
+                .staggeredAppear(0)
             GoalRingCard(title: "Carbs", value: carbs, target: dailyCarbsTarget, unit: "g", color: .blue)
+                .staggeredAppear(1)
             GoalRingCard(title: "Fat", value: fat, target: dailyFatTarget, unit: "g", color: .green)
+                .staggeredAppear(2)
             GoalRingCard(title: "Protein", value: protein, target: dailyProteinTarget, unit: "g", color: .orange)
+                .staggeredAppear(3)
         }
     }
 
@@ -156,7 +164,7 @@ struct MealsView: View {
                     .font(.headline)
                 Spacer()
                 if !meals.isEmpty {
-                    Text("\(Int(total)) kcal")
+                    AnimatedIntText(value: Int(total), suffix: " kcal")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(AppTheme.secondaryText)
                 }
@@ -175,6 +183,7 @@ struct MealsView: View {
                 }
 
                 Button {
+                    Haptic.light()
                     mealTypeToAdd = type
                     isAddingMeal = true
                 } label: {
@@ -184,6 +193,7 @@ struct MealsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 12)
                 }
+                .buttonStyle(.pressable)
             }
             .padding(.horizontal)
             .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -208,7 +218,7 @@ private struct GoalRingCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.subheadline.weight(.semibold))
                 HStack(spacing: 4) {
-                    Text("\(Int(abs(remaining)))\(unit) \(isOver ? "over" : "under")")
+                    AnimatedIntText(value: Int(abs(remaining)), suffix: "\(unit) \(isOver ? "over" : "under")")
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText)
                     if !isOver {
@@ -219,14 +229,8 @@ private struct GoalRingCard: View {
                 }
             }
             Spacer()
-            ZStack {
-                Circle().stroke(color.opacity(0.15), lineWidth: 6)
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-            }
-            .frame(width: 36, height: 36)
+            AnimatedRing(progress: progress, color: color, lineWidth: 6, celebratesCompletion: true)
+                .frame(width: 36, height: 36)
         }
         .padding()
         .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
