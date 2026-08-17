@@ -62,6 +62,7 @@ struct FitnessTrendsView: View {
             .padding()
         }
         .background(AppTheme.screenBackground)
+        .clearsFloatingTabBar()
         .navigationTitle("Trends")
         .navigationBarTitleDisplayMode(.inline)
         .task { await healthStore.refresh() }
@@ -123,8 +124,7 @@ private struct WeeklyTrendChart: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 }
 
@@ -187,8 +187,7 @@ private struct ActivityRingsView: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 }
 
@@ -232,8 +231,7 @@ private struct JournalBarChart: View {
             .accessibilityLabel("Weekly journal entries by category")
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 }
 
@@ -285,8 +283,7 @@ private struct JournalCalendar: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 
     private var monthDays: [Date?] {
@@ -365,8 +362,7 @@ private struct SelectedDayDetail: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 }
 

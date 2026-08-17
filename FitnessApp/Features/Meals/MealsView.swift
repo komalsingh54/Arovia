@@ -45,6 +45,7 @@ struct MealsView: View {
                 .padding()
             }
             .background(AppTheme.screenBackground)
+            .clearsFloatingTabBar()
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Text("Nutrition").font(.headline)
@@ -148,8 +149,7 @@ struct MealsView: View {
                 .foregroundStyle(AppTheme.secondaryText)
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 18)
     }
 
     // MARK: Meal sections
@@ -196,8 +196,7 @@ struct MealsView: View {
                 .buttonStyle(.pressable)
             }
             .padding(.horizontal)
-            .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border) }
+            .softCard(radius: 18)
         }
     }
 }
@@ -233,8 +232,7 @@ private struct GoalRingCard: View {
                 .frame(width: 36, height: 36)
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 18)
     }
 }
 

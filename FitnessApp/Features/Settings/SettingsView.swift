@@ -64,6 +64,7 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.screenBackground)
+            .clearsFloatingTabBar()
             .navigationTitle("Settings")
         }
     }

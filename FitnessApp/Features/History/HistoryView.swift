@@ -26,6 +26,7 @@ struct HistoryView: View {
         }
         .scrollContentBackground(.hidden)
         .background(AppTheme.screenBackground)
+        .clearsFloatingTabBar()
         .navigationTitle("History")
         .searchable(text: $searchText, prompt: "Search journal")
     }

@@ -41,6 +41,7 @@ struct HealthOverviewView: View {
                 .padding()
             }
             .background(AppTheme.screenBackground)
+            .clearsFloatingTabBar()
             .navigationTitle("Health")
             .navigationBarTitleDisplayMode(.inline)
             .task { await healthStore.refresh() }
@@ -113,8 +114,7 @@ struct HealthOverviewView: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 
     private var heartRateCard: some View {
@@ -148,8 +148,7 @@ struct HealthOverviewView: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 
     private var sleepCard: some View {
@@ -177,8 +176,7 @@ struct HealthOverviewView: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 
     private var activityDistanceCard: some View {
@@ -207,8 +205,7 @@ struct HealthOverviewView: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 
     private var weightCard: some View {
@@ -240,8 +237,7 @@ struct HealthOverviewView: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 
     private var diagnosticsCard: some View {
@@ -288,8 +284,7 @@ struct HealthOverviewView: View {
                 .font(.subheadline.weight(.semibold))
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 24)
     }
 }
 

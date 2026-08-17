@@ -55,6 +55,7 @@ struct ActivityView: View {
             }
             .scrollContentBackground(.hidden)
             .background(AppTheme.screenBackground)
+            .clearsFloatingTabBar()
             .navigationTitle("Activity")
             .task { await healthStore.refresh() }
             .refreshable { await healthStore.refresh() }

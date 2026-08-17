@@ -25,7 +25,7 @@ struct FitnessAppApp: App {
             ContentView()
                 .environmentObject(healthStore)
                 .environmentObject(localStore)
-                .preferredColorScheme(.dark)
+                // No forced color scheme — follows the device's Light/Dark setting.
         }
     }
 }

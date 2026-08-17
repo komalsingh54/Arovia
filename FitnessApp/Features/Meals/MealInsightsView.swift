@@ -101,8 +101,7 @@ struct MealInsightsView: View {
             }
         }
         .padding(.horizontal)
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 18)
     }
 
     private var caloriesInsightCard: some View {
@@ -120,8 +119,7 @@ struct MealInsightsView: View {
             }
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 18)
     }
 
     private var streakText: String {

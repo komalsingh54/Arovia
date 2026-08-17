@@ -40,15 +40,12 @@ struct InsightsView: View {
                     }
                 }
                 .padding()
-                .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(AppTheme.border, lineWidth: 1)
-                }
+                .softCard(radius: 20)
             }
             .padding()
         }
         .background(AppTheme.screenBackground)
+        .clearsFloatingTabBar()
         .navigationTitle("Insights")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -71,10 +68,6 @@ private struct InsightCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
+        .softCard(radius: 20)
     }
 }

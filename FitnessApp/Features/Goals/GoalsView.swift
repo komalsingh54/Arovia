@@ -49,6 +49,7 @@ struct GoalsView: View {
                     }
                     .scrollContentBackground(.hidden)
                     .background(AppTheme.screenBackground)
+                    .clearsFloatingTabBar()
                 }
             }
             .navigationTitle("Goals")

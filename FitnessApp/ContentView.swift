@@ -12,41 +12,24 @@ struct ContentView: View {
         VStack(spacing: 0) {
             HealthPermissionBanner()
 
+            // Exactly 5 tabs on purpose — iOS auto-collapses anything past 5 into a stock
+            // "More" list (that's what was rendering the undesigned overflow screen before).
+            // Journal/Goals/Profile/Settings now live in our own MoreView instead.
             TabView {
                 DashboardView()
-                    .tabItem {
-                        Label("Dashboard", systemImage: "square.grid.2x2.fill")
-                    }
+                    .tabItem { Image(systemName: "square.grid.2x2.fill") }
 
                 ActivityView()
-                    .tabItem {
-                        Label("Activity", systemImage: "figure.walk")
-                    }
+                    .tabItem { Image(systemName: "figure.walk") }
 
                 HealthOverviewView()
-                    .tabItem {
-                        Label("Health", systemImage: "heart.fill")
-                    }
+                    .tabItem { Image(systemName: "heart.fill") }
 
                 MealsView()
-                    .tabItem {
-                        Label("Meals", systemImage: "fork.knife")
-                    }
+                    .tabItem { Image(systemName: "fork.knife") }
 
-                JournalView()
-                    .tabItem {
-                        Label("Journal", systemImage: "note.text")
-                    }
-
-                GoalsView()
-                    .tabItem {
-                        Label("Goals", systemImage: "target")
-                    }
-
-                SettingsView()
-                    .tabItem {
-                        Label("Settings", systemImage: "gearshape")
-                    }
+                MoreView()
+                    .tabItem { Image(systemName: "ellipsis") }
             }
             .tint(AppTheme.tint)
         }
