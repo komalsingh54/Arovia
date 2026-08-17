@@ -16,30 +16,26 @@ struct JournalView: View {
                 if localStore.journalEntries.isEmpty {
                     ContentUnavailableView("No journal entries", systemImage: "note.text", description: Text("Record how a workout or day felt."))
                 } else {
-                    List {
-                        ForEach(localStore.journalEntries) { entry in
-                            Button {
-                                entryToEdit = entry
-                            } label: {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    HStack {
-                                        Label(entry.category.title, systemImage: entry.category.systemImage)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(AppTheme.tint)
-                                        Spacer()
-                                        Text(entry.date, format: .dateTime.day().month().year().hour().minute())
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            ForEach(localStore.journalEntries) { entry in
+                                Button {
+                                    entryToEdit = entry
+                                } label: {
+                                    JournalEntryRow(entry: entry)
+                                }
+                                .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button("Delete", systemImage: "trash", role: .destructive) {
+                                        if let index = localStore.journalEntries.firstIndex(where: { $0.id == entry.id }) {
+                                            localStore.deleteJournalEntries(at: IndexSet(integer: index))
+                                        }
                                     }
-                                    Text(entry.title).font(.headline).foregroundStyle(.primary)
-                                    if !entry.details.isEmpty { Text(entry.details).foregroundStyle(.secondary) }
                                 }
                             }
-                            .buttonStyle(.plain)
                         }
-                        .onDelete(perform: localStore.deleteJournalEntries)
+                        .padding()
                     }
-                    .scrollContentBackground(.hidden)
                     .background(AppTheme.screenBackground)
                     .clearsFloatingTabBar()
                 }
@@ -50,6 +46,36 @@ struct JournalView: View {
             .sheet(isPresented: $isAddingEntry) { JournalEditorView(entry: nil) }
             .sheet(item: $entryToEdit) { entry in JournalEditorView(entry: entry) }
         }
+    }
+}
+
+private struct JournalEntryRow: View {
+    let entry: JournalEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(entry.category.title, systemImage: entry.category.systemImage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.tint)
+                Spacer()
+                Text(entry.date, format: .dateTime.day().month().year().hour().minute())
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.mutedText)
+            }
+            Text(entry.title)
+                .font(.headline)
+                .foregroundStyle(AppTheme.primaryText)
+            if !entry.details.isEmpty {
+                Text(entry.details)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .lineLimit(3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .softCard(radius: 20)
     }
 }
 

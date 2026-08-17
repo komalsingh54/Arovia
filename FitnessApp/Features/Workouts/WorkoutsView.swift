@@ -39,28 +39,35 @@ struct WorkoutsView: View {
                         : "Connect Health from the Dashboard to see your workout history.")
                 )
             } else {
-                List {
-                    Section {
-                        HStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        HStack(spacing: 0) {
                             MetricSummary(title: "This week", value: weekDurationDescription, systemImage: "calendar")
-                            Divider()
+                            Divider().frame(height: 36)
                             MetricSummary(title: "Logged", value: "\(healthStore.recentWorkouts.count)", systemImage: "list.bullet")
                         }
-                        .listRowBackground(Color.clear)
-                    }
+                        .padding()
+                        .softCard(radius: 20)
 
-                    Section("Recent") {
-                        ForEach(healthStore.recentWorkouts) { workout in
-                            Button {
-                                workoutToAnnotate = workout
-                            } label: {
-                                WorkoutRow(workout: workout, note: note(for: workout))
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Recent")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(AppTheme.primaryText)
+                            VStack(spacing: 10) {
+                                ForEach(healthStore.recentWorkouts) { workout in
+                                    Button {
+                                        workoutToAnnotate = workout
+                                    } label: {
+                                        WorkoutRow(workout: workout, note: note(for: workout))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
+                    .padding()
                 }
-                .scrollContentBackground(.hidden)
+                .clearsFloatingTabBar()
             }
         }
         .background(AppTheme.screenBackground)
@@ -91,12 +98,13 @@ private struct WorkoutRow: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "figure.run")
                 .foregroundStyle(AppTheme.tint)
-                .frame(width: 28, height: 28)
+                .frame(width: 40, height: 40)
+                .background(AppTheme.elevatedCardBackground, in: Circle())
             VStack(alignment: .leading, spacing: 4) {
-                Text(workout.title).foregroundStyle(.primary).font(.headline)
+                Text(workout.title).foregroundStyle(AppTheme.primaryText).font(.headline)
                 Text(workout.startDate, format: .dateTime.weekday(.abbreviated).month().day().hour().minute())
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(AppTheme.mutedText)
                 if let note, !note.details.isEmpty {
                     Text(note.details)
                         .font(.footnote)
@@ -105,14 +113,16 @@ private struct WorkoutRow: View {
                 } else {
                     Text("Tap to add a note")
                         .font(.footnote)
-                        .foregroundStyle(AppTheme.secondaryText.opacity(0.7))
+                        .foregroundStyle(AppTheme.mutedText)
                 }
             }
             Spacer()
             Text(workout.durationDescription)
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.secondaryText)
         }
-        .padding(.vertical, 4)
+        .padding()
+        .softCard(radius: 20)
     }
 }
 

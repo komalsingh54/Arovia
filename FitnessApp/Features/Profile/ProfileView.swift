@@ -62,6 +62,7 @@ struct ProfileView: View {
             .padding()
         }
         .background(AppTheme.screenBackground)
+        .clearsFloatingTabBar()
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .task {

@@ -17,37 +17,21 @@ struct GoalsView: View {
                 if localStore.goals.isEmpty {
                     ContentUnavailableView("No goals yet", systemImage: "target", description: Text("Create a goal to keep your progress on track."))
                 } else {
-                    List {
-                        ForEach(localStore.goals) { goal in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Text(goal.title).font(.headline)
-                                    Spacer()
-                                    Text("\(goal.currentValue(using: healthStore.metrics).formatted(.number.precision(.fractionLength(0)))) / \(goal.targetValue.formatted(.number.precision(.fractionLength(0)))) \(goal.unit)")
-                                        .foregroundStyle(AppTheme.secondaryText)
-                                }
-                                ProgressView(value: goal.progress(using: healthStore.metrics))
-                                    .accessibilityLabel("\(goal.title) progress")
-                                    .accessibilityValue("\(Int(goal.progress(using: healthStore.metrics) * 100)) percent")
-
-                                if goal.progress(using: healthStore.metrics) >= 1 {
-                                    Label("Goal complete", systemImage: "checkmark.circle.fill")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(AppTheme.tint)
-                                }
-
-                                if goal.metric == .custom {
-                                    Button("Log Progress") {
-                                        goalToUpdate = goal
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            ForEach(localStore.goals) { goal in
+                                GoalRow(goal: goal, metrics: healthStore.metrics) { goalToUpdate = goal }
+                                    .contextMenu {
+                                        Button("Delete", systemImage: "trash", role: .destructive) {
+                                            if let index = localStore.goals.firstIndex(where: { $0.id == goal.id }) {
+                                                localStore.deleteGoals(at: IndexSet(integer: index))
+                                            }
+                                        }
                                     }
-                                    .font(.subheadline.weight(.semibold))
-                                }
                             }
-                            .padding(.vertical, 4)
                         }
-                        .onDelete(perform: localStore.deleteGoals)
+                        .padding()
                     }
-                    .scrollContentBackground(.hidden)
                     .background(AppTheme.screenBackground)
                     .clearsFloatingTabBar()
                 }
@@ -61,6 +45,59 @@ struct GoalsView: View {
             }
             .task { await healthStore.refresh() }
         }
+    }
+}
+
+private struct GoalRow: View {
+    let goal: FitnessGoal
+    let metrics: DailyMetrics
+    let onLogProgress: () -> Void
+
+    private var progress: Double { goal.progress(using: metrics) }
+    private var isComplete: Bool { progress >= 1 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(goal.title)
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.primaryText)
+                    Text(goal.metric.title)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.mutedText)
+                }
+                Spacer()
+                Text("\(goal.currentValue(using: metrics).formatted(.number.precision(.fractionLength(0)))) / \(goal.targetValue.formatted(.number.precision(.fractionLength(0)))) \(goal.unit)")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+
+            ProgressView(value: progress)
+                .tint(isComplete ? AppTheme.ringExercise : AppTheme.tint)
+                .accessibilityLabel("\(goal.title) progress")
+                .accessibilityValue("\(Int(progress * 100)) percent")
+
+            HStack {
+                if isComplete {
+                    Label("Goal complete", systemImage: "checkmark.circle.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.ringExercise)
+                } else {
+                    Text("\(Int(progress * 100))% of the way there")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.mutedText)
+                }
+                Spacer()
+                if goal.metric == .custom {
+                    Button("Log Progress", action: onLogProgress)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.tint)
+                }
+            }
+        }
+        .padding()
+        .softCard(radius: 20)
     }
 }
 
