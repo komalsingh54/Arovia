@@ -77,6 +77,13 @@ enum AppTheme {
     static let energy = glowEnergy
     static let secondaryAccent = glowExercise
 
+    // MARK: Activity rings — matches Apple Fitness' canonical Move/Exercise/Stand mapping
+    // (red outer, green middle, blue inner) so the rings read instantly instead of needing
+    // a legend to figure out which color means what.
+    static let ringMove = Color(red: 1.00, green: 0.176, blue: 0.333)
+    static let ringExercise = Color(red: 0.635, green: 0.910, blue: 0.169)
+    static let ringStand = Color(red: 0.106, green: 0.910, blue: 0.910)
+
     /// Soft radial glow behind a hero stat, echoing the blurred blob in the reference.
     static func glow(_ color: Color) -> RadialGradient {
         RadialGradient(

@@ -21,6 +21,12 @@ struct FitnessTrendsView: View {
                         .foregroundStyle(AppTheme.secondaryText)
                 }
 
+                WeekRingStrip(
+                    selectedDate: $selectedDate,
+                    trends: healthStore.weeklyTrends,
+                    liveMetrics: healthStore.metrics
+                )
+
                 ActivityRingsView(
                     date: selectedDate,
                     steps: dayValue(in: healthStore.weeklyTrends.steps, on: selectedDate, liveFallback: healthStore.metrics.steps),
@@ -55,8 +61,10 @@ struct FitnessTrendsView: View {
 
                 JournalBarChart(entries: localStore.journalEntries)
 
-                JournalCalendar(entries: localStore.journalEntries, selectedDate: $selectedDate)
-
+                // The week strip above already handles date selection (with rings, so it
+                // doubles as a mini activity summary) — a separate month grid was a second,
+                // redundant way to pick a date and made the screen feel more complicated
+                // than it needed to be.
                 SelectedDayDetail(date: selectedDate, entries: localStore.journalEntries, trends: healthStore.weeklyTrends)
             }
             .padding()
@@ -157,11 +165,11 @@ private struct ActivityRingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 ZStack {
-                    AnimatedRing(progress: standProgress, color: AppTheme.tint, lineWidth: 14)
+                    AnimatedRing(progress: moveProgress, color: AppTheme.ringMove, lineWidth: 14, celebratesCompletion: true)
                         .frame(width: 208, height: 208)
-                    AnimatedRing(progress: exerciseProgress, color: .cyan, lineWidth: 14)
+                    AnimatedRing(progress: exerciseProgress, color: AppTheme.ringExercise, lineWidth: 14)
                         .frame(width: 164, height: 164)
-                    AnimatedRing(progress: moveProgress, color: AppTheme.energy, lineWidth: 14, celebratesCompletion: true)
+                    AnimatedRing(progress: standProgress, color: AppTheme.ringStand, lineWidth: 14)
                         .frame(width: 120, height: 120)
                     VStack(spacing: 2) {
                         Text("MOVE")
@@ -180,9 +188,9 @@ private struct ActivityRingsView: View {
                 .accessibilityValue("\(Int(moveProgress * 100)) percent move, \(Int(exerciseProgress * 100)) percent exercise, \(Int(standProgress * 100)) percent steps")
 
                 HStack {
-                    RingLegend(title: "Move", value: "\(Int(activeEnergy))/500 kcal", color: AppTheme.energy)
-                    RingLegend(title: "Exercise", value: "\(Int(exerciseMinutes))/30 min", color: .cyan)
-                    RingLegend(title: "Steps", value: "\(Int(steps))/10k", color: AppTheme.tint)
+                    RingLegend(title: "Move", value: "\(Int(activeEnergy))/500 kcal", color: AppTheme.ringMove)
+                    RingLegend(title: "Exercise", value: "\(Int(exerciseMinutes))/30 min", color: AppTheme.ringExercise)
+                    RingLegend(title: "Steps", value: "\(Int(steps))/10k", color: AppTheme.ringStand)
                 }
             }
         }
@@ -241,58 +249,90 @@ private struct CategoryCount: Identifiable {
     var id: JournalCategory { category }
 }
 
-private struct JournalCalendar: View {
-    let entries: [JournalEntry]
+/// A week-at-a-glance date picker where each day is its own tiny three-ring glyph — the same
+/// pattern Apple's own Fitness app uses for its weekly summary. Doubles as both a calendar and
+/// a "how did each day go" snapshot, so there's no separate month grid competing for the same job.
+private struct WeekRingStrip: View {
     @Binding var selectedDate: Date
+    let trends: WeeklyHealthTrends
+    let liveMetrics: DailyMetrics
     private let calendar = Calendar.current
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(Date.now, format: .dateTime.month(.wide).year())
-                .font(.title3.weight(.bold))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 10) {
-                ForEach(calendar.shortWeekdaySymbols, id: \.self) { weekday in
-                    Text(weekday.prefix(1)).font(.caption.weight(.bold)).foregroundStyle(AppTheme.secondaryText)
-                }
-                ForEach(Array(monthDays.enumerated()), id: \.offset) { _, date in
-                    if let date {
-                        let hasEntry = entries.contains { calendar.isDate($0.date, inSameDayAs: date) }
-                        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
-                        Button {
-                            selectedDate = date
-                        } label: {
-                            Text(date, format: .dateTime.day())
-                                .font(.caption.weight(.semibold))
-                                .frame(width: 30, height: 30)
-                                .background(hasEntry ? AppTheme.tint : .clear, in: Circle())
-                                .foregroundStyle(hasEntry ? AppTheme.screenBackground : .primary)
-                                .overlay {
-                                    if isSelected {
-                                        Circle().stroke(AppTheme.tint, lineWidth: 2)
-                                    }
-                                }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
-                        .accessibilityValue(hasEntry ? "Journal entry recorded" : "No journal entry")
-                        .accessibilityAddTraits(isSelected ? .isSelected : [])
-                    } else {
-                        Color.clear.frame(width: 30, height: 30)
-                    }
-                }
-            }
-        }
-        .padding()
-        .softCard(radius: 24)
+    private var weekDays: [Date] {
+        guard let start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: .now)) else { return [] }
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
     }
 
-    private var monthDays: [Date?] {
-        guard let range = calendar.range(of: .day, in: .month, for: .now),
-              let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: .now)) else { return [] }
-        let weekdayOffset = (calendar.component(.weekday, from: monthStart) - calendar.firstWeekday + 7) % 7
-        return Array(repeating: nil, count: weekdayOffset) + range.compactMap {
-            calendar.date(byAdding: .day, value: $0 - 1, to: monthStart)
+    private func progress(in points: [DailyMetricPoint], on date: Date, goal: Double, liveFallback: Double) -> Double {
+        let value = points.first { calendar.isDate($0.date, inSameDayAs: date) }?.value
+            ?? (calendar.isDateInToday(date) ? liveFallback : 0)
+        return min(value / goal, 1)
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(weekDays, id: \.self) { date in
+                let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                Button {
+                    withAnimation(.snappy) { selectedDate = date }
+                } label: {
+                    VStack(spacing: 8) {
+                        Text(date, format: .dateTime.weekday(.narrow))
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(calendar.isDateInToday(date) ? AppTheme.tint : AppTheme.secondaryText)
+                        MiniRingGlyph(
+                            move: progress(in: trends.activeEnergy, on: date, goal: 500, liveFallback: liveMetrics.activeEnergy),
+                            exercise: progress(in: trends.exerciseMinutes, on: date, goal: 30, liveFallback: liveMetrics.exerciseMinutes),
+                            stand: progress(in: trends.steps, on: date, goal: 10_000, liveFallback: liveMetrics.steps)
+                        )
+                        .frame(width: 34, height: 34)
+                        Text(date, format: .dateTime.day())
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(AppTheme.mutedText)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(AppTheme.elevatedCardBackground)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+            }
         }
+        .padding(6)
+        .softCard(radius: 22)
+    }
+}
+
+/// Small static three-ring icon (no animation — these render seven at once in a row) using
+/// Apple's canonical Move-outer/Exercise-middle/Stand-inner order and colors.
+private struct MiniRingGlyph: View {
+    let move: Double
+    let exercise: Double
+    let stand: Double
+
+    var body: some View {
+        ZStack {
+            ring(progress: 1, color: AppTheme.ringMove.opacity(0.18), diameter: 34)
+            ring(progress: move, color: AppTheme.ringMove, diameter: 34)
+            ring(progress: 1, color: AppTheme.ringExercise.opacity(0.18), diameter: 24)
+            ring(progress: exercise, color: AppTheme.ringExercise, diameter: 24)
+            ring(progress: 1, color: AppTheme.ringStand.opacity(0.18), diameter: 14)
+            ring(progress: stand, color: AppTheme.ringStand, diameter: 14)
+        }
+    }
+
+    private func ring(progress: Double, color: Color, diameter: CGFloat) -> some View {
+        Circle()
+            .trim(from: 0, to: max(progress, 0.001))
+            .stroke(color, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+            .frame(width: diameter, height: diameter)
     }
 }
 
