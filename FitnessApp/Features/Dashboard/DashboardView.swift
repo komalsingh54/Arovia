@@ -8,6 +8,7 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var healthStore: HealthStore
     @EnvironmentObject private var localStore: LocalStore
+    @AppStorage("dailyCalorieTarget") private var dailyCalorieTarget = 2_000.0
 
     var body: some View {
         NavigationStack {
@@ -54,8 +55,8 @@ struct DashboardView: View {
                             .staggeredAppear(3)
                     }
 
-                    if healthStore.weeklyTrends.steps.count >= 2 {
-                        todaysHeadlineInsight
+                    if healthStore.status == .ready {
+                        dailyBriefingCard
                     }
 
                     if !localStore.goals.isEmpty {
@@ -150,26 +151,34 @@ struct DashboardView: View {
         ]
     }
 
-    private var todaysInsight: HealthInsights {
-        HealthInsights(metrics: healthStore.metrics, trends: healthStore.weeklyTrends, calorieTarget: 2_000)
+    private var dailyBriefing: DailyBriefing {
+        DailyBriefing(
+            metrics: healthStore.metrics,
+            trends: healthStore.weeklyTrends,
+            todaysMeals: localStore.mealEntries.filter { Calendar.current.isDateInToday($0.date) },
+            calorieTarget: dailyCalorieTarget,
+            goals: localStore.goals,
+            journalEntries: localStore.journalEntries
+        )
     }
 
-    /// One line, not a chart — the full 7-day steps chart already lives on the Insights screen,
-    /// and Health has its own deeper trend charts. Repeating the same bar chart here added
-    /// nothing new; a plain-language comparison does.
-    private var todaysHeadlineInsight: some View {
+    /// Reads like a short daily briefing rather than a stat card — activity, nutrition, and
+    /// whatever's most worth flagging in goals/journal, synthesized into a few sentences
+    /// instead of making the person cross-reference four separate cards themselves.
+    private var dailyBriefingCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("Today's insight", systemImage: "sparkles")
+                Label("Your day so far", systemImage: "sparkles")
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(AppTheme.tint)
                 Spacer()
                 NavigationLink("Full insights") { FitnessTrendsView() }
                     .font(.caption)
             }
-            Text(todaysInsight.stepsTrendInsight ?? "Log a few days of activity to start seeing comparisons here.")
+            Text(dailyBriefing.paragraph)
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding()
         .softCard()
