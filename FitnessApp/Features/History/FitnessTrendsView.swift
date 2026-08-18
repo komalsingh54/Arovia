@@ -15,9 +15,9 @@ struct FitnessTrendsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Your Trends")
+                    Text("Insights")
                         .font(.largeTitle.weight(.bold))
-                    Text("A clear view of your activity and consistency.")
+                    Text("Patterns and comparisons, not just numbers.")
                         .foregroundStyle(AppTheme.secondaryText)
                 }
 
@@ -34,6 +34,10 @@ struct FitnessTrendsView: View {
                     exerciseMinutes: dayValue(in: healthStore.weeklyTrends.exerciseMinutes, on: selectedDate, liveFallback: healthStore.metrics.exerciseMinutes),
                     isInChartedRange: isDateInChartedRange(selectedDate)
                 )
+
+                if let insight = weeklyInsight {
+                    InsightBanner(text: insight)
+                }
 
                 WeeklyTrendChart(
                     title: "Distance",
@@ -59,7 +63,7 @@ struct FitnessTrendsView: View {
                     style: .bar
                 )
 
-                JournalBarChart(entries: localStore.journalEntries)
+                JournalWeekSummary(entries: localStore.journalEntries)
 
                 // The week strip above already handles date selection (with rings, so it
                 // doubles as a mini activity summary) — a separate month grid was a second,
@@ -90,6 +94,14 @@ struct FitnessTrendsView: View {
 
     private func isDateInChartedRange(_ date: Date) -> Bool {
         healthStore.weeklyTrends.steps.contains { Calendar.current.isDate($0.date, inSameDayAs: date) }
+    }
+
+    /// Surfaces whichever of the three ring metrics deviates most from its own 7-day average
+    /// today — that's the one worth a sentence, rather than printing all three every time.
+    private var weeklyInsight: String? {
+        let insights = HealthInsights(metrics: healthStore.metrics, trends: healthStore.weeklyTrends, calorieTarget: 2_000)
+        let candidates = [insights.stepsTrendInsight, insights.activeEnergyTrendInsight, insights.exerciseTrendInsight].compactMap { $0 }
+        return candidates.first
     }
 }
 
@@ -214,18 +226,52 @@ private struct RingLegend: View {
     }
 }
 
-private struct JournalBarChart: View {
+private struct InsightBanner: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "sparkles")
+                .foregroundStyle(AppTheme.tint)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.primaryText)
+        }
+        .padding()
+        .softCard(radius: 18)
+    }
+}
+
+/// Replaces the old separate "Insights" tab, which computed this exact same
+/// `JournalAnalytics` data and displayed it a second time with different chrome. One screen,
+/// one job: this is now the only place the weekly journal breakdown lives.
+private struct JournalWeekSummary: View {
     let entries: [JournalEntry]
 
-    private var data: [CategoryCount] {
-        let analytics = JournalAnalytics(entries: entries)
-        return analytics.categoryCounts.map { CategoryCount(category: $0.category, count: $0.count) }
+    private var analytics: JournalAnalytics { JournalAnalytics(entries: entries) }
+    private var data: [CategoryCount] { analytics.categoryCounts.map { CategoryCount(category: $0.category, count: $0.count) } }
+
+    private var streakInsight: String {
+        let streak = analytics.currentStreak
+        if streak == 0 { return "No journal streak yet — log something today to start one." }
+        if streak == 1 { return "You've journaled today — log tomorrow too to start a streak." }
+        return "You're on a \(streak)-day journaling streak. Keep it going."
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Weekly Journal")
                 .font(.title3.weight(.bold))
+
+            HStack(spacing: 12) {
+                JournalStatCard(value: analytics.entriesThisWeek.count.formatted(), label: "Entries this week", icon: "note.text")
+                JournalStatCard(value: analytics.currentStreak.formatted(), label: "Day streak", icon: "flame.fill")
+            }
+
+            Text(streakInsight)
+                .font(.footnote)
+                .foregroundStyle(AppTheme.secondaryText)
+
             Chart(data) { item in
                 BarMark(
                     x: .value("Category", item.category.title),
@@ -235,11 +281,29 @@ private struct JournalBarChart: View {
                 .cornerRadius(6)
             }
             .chartYAxis { AxisMarks(position: .leading) }
-            .frame(height: 180)
+            .frame(height: 160)
             .accessibilityLabel("Weekly journal entries by category")
         }
         .padding()
         .softCard(radius: 24)
+    }
+}
+
+private struct JournalStatCard: View {
+    let value: String
+    let label: String
+    let icon: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: icon)
+                .foregroundStyle(AppTheme.tint)
+            Text(value).font(.title2.bold()).foregroundStyle(AppTheme.primaryText)
+            Text(label).font(.caption).foregroundStyle(AppTheme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(AppTheme.elevatedCardBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

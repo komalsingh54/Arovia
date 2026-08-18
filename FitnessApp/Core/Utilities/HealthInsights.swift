@@ -27,14 +27,28 @@ struct HealthInsights {
     }
 
     var stepsTrendInsight: String? {
-        guard trends.steps.count >= 2 else { return nil }
-        let average = trends.steps.map(\.value).reduce(0, +) / Double(trends.steps.count)
+        trendInsight(for: trends.steps, metricLabel: "steps", unit: "")
+    }
+
+    var activeEnergyTrendInsight: String? {
+        trendInsight(for: trends.activeEnergy, metricLabel: "active energy", unit: " kcal")
+    }
+
+    var exerciseTrendInsight: String? {
+        trendInsight(for: trends.exerciseMinutes, metricLabel: "exercise", unit: " min")
+    }
+
+    /// Shared "today vs your 7-day average" phrasing so every metric gets the same comparison
+    /// treatment instead of each screen inventing its own one-off insight text.
+    private func trendInsight(for points: [DailyMetricPoint], metricLabel: String, unit: String) -> String? {
+        guard points.count >= 2 else { return nil }
+        let average = points.map(\.value).reduce(0, +) / Double(points.count)
         guard average > 0 else { return nil }
-        let today = trends.steps.last?.value ?? 0
+        let today = points.last?.value ?? 0
         let delta = ((today - average) / average) * 100
-        if abs(delta) < 5 { return "Steps today are in line with your 7-day average of \(Int(average))." }
+        if abs(delta) < 5 { return "Today's \(metricLabel) is in line with your 7-day average of \(Int(average))\(unit)." }
         let direction = delta > 0 ? "above" : "below"
-        return "Today's steps are \(Int(abs(delta)))% \(direction) your 7-day average of \(Int(average))."
+        return "Today's \(metricLabel) is \(Int(abs(delta)))% \(direction) your 7-day average of \(Int(average))\(unit)."
     }
 
     var restingHeartRateTrendInsight: String? {

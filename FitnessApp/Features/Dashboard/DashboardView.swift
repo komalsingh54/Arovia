@@ -4,7 +4,6 @@
 //
 
 import SwiftUI
-import Charts
 
 struct DashboardView: View {
     @EnvironmentObject private var healthStore: HealthStore
@@ -55,8 +54,8 @@ struct DashboardView: View {
                             .staggeredAppear(3)
                     }
 
-                    if !healthStore.weeklyTrends.steps.isEmpty {
-                        weeklyStepsSparkline
+                    if healthStore.weeklyTrends.steps.count >= 2 {
+                        todaysHeadlineInsight
                     }
 
                     if !localStore.goals.isEmpty {
@@ -151,24 +150,26 @@ struct DashboardView: View {
         ]
     }
 
-    private var weeklyStepsSparkline: some View {
+    private var todaysInsight: HealthInsights {
+        HealthInsights(metrics: healthStore.metrics, trends: healthStore.weeklyTrends, calorieTarget: 2_000)
+    }
+
+    /// One line, not a chart — the full 7-day steps chart already lives on the Insights screen,
+    /// and Health has its own deeper trend charts. Repeating the same bar chart here added
+    /// nothing new; a plain-language comparison does.
+    private var todaysHeadlineInsight: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("7-Day Steps")
+                Label("Today's insight", systemImage: "sparkles")
                     .font(.subheadline.weight(.bold))
+                    .foregroundStyle(AppTheme.tint)
                 Spacer()
-                NavigationLink("Full trends") { FitnessTrendsView() }
+                NavigationLink("Full insights") { FitnessTrendsView() }
                     .font(.caption)
             }
-            Chart(healthStore.weeklyTrends.steps) { point in
-                BarMark(x: .value("Day", point.date, unit: .day), y: .value("Steps", point.value))
-                    .foregroundStyle(AppTheme.tint.gradient)
-                    .cornerRadius(4)
-            }
-            .chartXAxis { AxisMarks(values: .stride(by: .day)) { AxisValueLabel(format: .dateTime.weekday(.narrow)) } }
-            .chartYAxis(.hidden)
-            .frame(height: 90)
-            .accessibilityLabel("Steps over the last 7 days")
+            Text(todaysInsight.stepsTrendInsight ?? "Log a few days of activity to start seeing comparisons here.")
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.primaryText)
         }
         .padding()
         .softCard()

@@ -58,11 +58,8 @@ struct ActivityView: View {
                             NavigationLink { HistoryView() } label: {
                                 QuickLinkRow(title: "Journal history", systemImage: "clock.arrow.circlepath")
                             }
-                            NavigationLink { InsightsView() } label: {
-                                QuickLinkRow(title: "Weekly insights", systemImage: "chart.bar.fill")
-                            }
                             NavigationLink { FitnessTrendsView() } label: {
-                                QuickLinkRow(title: "Fitness trends", systemImage: "waveform.path.ecg")
+                                QuickLinkRow(title: "Insights", systemImage: "waveform.path.ecg")
                             }
                         }
                         .buttonStyle(.plain)
