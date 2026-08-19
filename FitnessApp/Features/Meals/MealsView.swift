@@ -18,6 +18,7 @@ struct MealsView: View {
     @State private var isAddingMeal = false
     @State private var mealTypeToAdd: MealType = .breakfast
     @State private var isEditingTargets = false
+    @State private var mealToEdit: MealEntry?
 
     private var calendar: Calendar { .current }
     private var analytics: MealAnalytics { MealAnalytics(meals: localStore.mealEntries) }
@@ -60,6 +61,9 @@ struct MealsView: View {
             }
             .sheet(isPresented: $isAddingMeal) {
                 FoodSearchView(mealType: mealTypeToAdd, date: selectedDate)
+            }
+            .sheet(item: $mealToEdit) { meal in
+                MealEditorView(meal: meal)
             }
             .sheet(isPresented: $isEditingTargets) {
                 NutritionTargetsEditor(
@@ -172,7 +176,22 @@ struct MealsView: View {
 
             VStack(spacing: 0) {
                 ForEach(meals) { meal in
-                    MealRow(meal: meal)
+                    MealRow(
+                        meal: meal,
+                        onEdit: {
+                            Haptic.light()
+                            mealToEdit = meal
+                        },
+                        onDelete: {
+                            withAnimation { localStore.delete(meal: meal) }
+                        }
+                    )
+                    .contextMenu {
+                        Button("Edit", systemImage: "pencil") { mealToEdit = meal }
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            withAnimation { localStore.delete(meal: meal) }
+                        }
+                    }
                     if meal.id != meals.last?.id {
                         Divider().background(AppTheme.border)
                     }
@@ -238,11 +257,13 @@ private struct GoalRingCard: View {
 
 private struct MealRow: View {
     let meal: MealEntry
+    let onEdit: () -> Void
+    let onDelete: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(meal.name).font(.subheadline.weight(.semibold))
+                Text(meal.name).font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.primaryText)
                 HStack(spacing: 10) {
                     MacroBadge(label: "🔥", value: Int(meal.calories), color: AppTheme.energy)
                     MacroBadge(label: "C", value: Int(meal.carbohydratesGrams), color: .blue)
@@ -250,12 +271,23 @@ private struct MealRow: View {
                     MacroBadge(label: "P", value: Int(meal.proteinGrams), color: .orange)
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onEdit)
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "minus.circle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.mutedText)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.vertical, 10)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(meal.name), \(meal.mealType.title)")
         .accessibilityValue("\(Int(meal.calories)) calories, \(Int(meal.carbohydratesGrams)) grams carbohydrates, \(Int(meal.fatGrams)) grams fat, \(Int(meal.proteinGrams)) grams protein")
+        .accessibilityAction(named: "Edit", onEdit)
+        .accessibilityAction(named: "Delete", onDelete)
     }
 }
 
@@ -276,6 +308,89 @@ private struct MacroBadge: View {
     }
 }
 
+
+private struct MealEditorView: View {
+    let meal: MealEntry
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var localStore: LocalStore
+
+    @State private var name: String
+    @State private var mealType: MealType
+    @State private var calories: Double
+    @State private var protein: Double
+    @State private var carbs: Double
+    @State private var fat: Double
+
+    init(meal: MealEntry) {
+        self.meal = meal
+        _name = State(initialValue: meal.name)
+        _mealType = State(initialValue: meal.mealType)
+        _calories = State(initialValue: meal.calories)
+        _protein = State(initialValue: meal.proteinGrams)
+        _carbs = State(initialValue: meal.carbohydratesGrams)
+        _fat = State(initialValue: meal.fatGrams)
+    }
+
+    private var isValid: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && calories >= 0
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Meal") {
+                    TextField("Name", text: $name)
+                    Picker("Type", selection: $mealType) {
+                        ForEach(MealType.allCases) { type in
+                            Label(type.title, systemImage: type.systemImage).tag(type)
+                        }
+                    }
+                }
+                Section("Nutrition") {
+                    LabeledContent("Calories") {
+                        TextField("Calories", value: $calories, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Protein (g)") {
+                        TextField("Protein", value: $protein, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Carbs (g)") {
+                        TextField("Carbs", value: $carbs, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Fat (g)") {
+                        TextField("Fat", value: $fat, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                }
+                Section {
+                    Button("Delete Meal", systemImage: "trash", role: .destructive) {
+                        localStore.delete(meal: meal)
+                        dismiss()
+                    }
+                }
+            }
+            .navigationTitle("Edit Meal")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        localStore.update(meal: MealEntry(
+                            id: meal.id,
+                            name: name,
+                            mealType: mealType,
+                            calories: calories,
+                            proteinGrams: protein,
+                            carbohydratesGrams: carbs,
+                            fatGrams: fat,
+                            date: meal.date,
+                            updatedAt: .now
+                        ))
+                        dismiss()
+                    }
+                    .disabled(!isValid)
+                }
+            }
+        }
+    }
+}
 
 private struct NutritionTargetsEditor: View {
     @Environment(\.dismiss) private var dismiss

@@ -49,6 +49,8 @@ struct SettingsView: View {
                         .font(.subheadline.weight(.semibold))
                     }
 
+                    MealRemindersSection()
+
                     SettingsGroup(title: "iCloud Sync") {
                         LabeledContent("Goals, journal & meals", value: FeatureFlags.cloudKitEnabled ? "Enabled" : "Local only")
                         Button(isSyncing ? "Syncing…" : "Sync Now") {
@@ -92,6 +94,112 @@ struct SettingsView: View {
         case .failed: "Try again"
         case .idle: "Not connected"
         }
+    }
+}
+
+private struct MealRemindersSection: View {
+    @EnvironmentObject private var mealReminderScheduler: MealReminderScheduler
+    @EnvironmentObject private var localStore: LocalStore
+
+    @AppStorage(MealReminderSettings.Keys.masterEnabled) private var isEnabled = false
+    @AppStorage(MealReminderSettings.Keys.enabled(.breakfast)) private var breakfastEnabled = true
+    @AppStorage(MealReminderSettings.Keys.enabled(.lunch)) private var lunchEnabled = true
+    @AppStorage(MealReminderSettings.Keys.enabled(.dinner)) private var dinnerEnabled = true
+    @AppStorage(MealReminderSettings.Keys.hour(.breakfast)) private var breakfastHour = MealReminderSettings.defaultHours[.breakfast]!
+    @AppStorage(MealReminderSettings.Keys.minute(.breakfast)) private var breakfastMinute = 0
+    @AppStorage(MealReminderSettings.Keys.hour(.lunch)) private var lunchHour = MealReminderSettings.defaultHours[.lunch]!
+    @AppStorage(MealReminderSettings.Keys.minute(.lunch)) private var lunchMinute = 0
+    @AppStorage(MealReminderSettings.Keys.hour(.dinner)) private var dinnerHour = MealReminderSettings.defaultHours[.dinner]!
+    @AppStorage(MealReminderSettings.Keys.minute(.dinner)) private var dinnerMinute = 0
+
+    var body: some View {
+        SettingsGroup(title: "Meal Reminders") {
+            Toggle("Remind me to log meals", isOn: Binding(
+                get: { isEnabled },
+                set: { newValue in
+                    isEnabled = newValue
+                    if newValue {
+                        Task {
+                            if mealReminderScheduler.authorizationStatus != .authorized {
+                                await mealReminderScheduler.requestAuthorization()
+                            }
+                            await refreshSchedule()
+                        }
+                    } else {
+                        Task { await refreshSchedule() }
+                    }
+                }
+            ))
+            .tint(AppTheme.tint)
+
+            if isEnabled {
+                if mealReminderScheduler.authorizationStatus == .denied {
+                    Text("Notifications are turned off for Arovia in iOS Settings, so reminders won't appear. Enable them in Settings → Notifications → Arovia.")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.energy)
+                }
+
+                mealRow(title: "Breakfast", enabled: $breakfastEnabled, hour: $breakfastHour, minute: $breakfastMinute)
+                mealRow(title: "Lunch", enabled: $lunchEnabled, hour: $lunchHour, minute: $lunchMinute)
+                mealRow(title: "Dinner", enabled: $dinnerEnabled, hour: $dinnerHour, minute: $dinnerMinute)
+
+                Text("Reminders only fire for meals you haven't logged yet — log breakfast and today's breakfast reminder won't appear.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+        }
+        .task { await refreshSchedule() }
+    }
+
+    private func mealRow(title: String, enabled: Binding<Bool>, hour: Binding<Int>, minute: Binding<Int>) -> some View {
+        HStack {
+            Toggle(title, isOn: Binding(
+                get: { enabled.wrappedValue },
+                set: { enabled.wrappedValue = $0; Task { await refreshSchedule() } }
+            ))
+            .tint(AppTheme.tint)
+
+            if enabled.wrappedValue {
+                DatePicker(
+                    "",
+                    selection: timeBinding(hour: hour, minute: minute),
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .fixedSize()
+                .onChange(of: hour.wrappedValue) { Task { await refreshSchedule() } }
+                .onChange(of: minute.wrappedValue) { Task { await refreshSchedule() } }
+            }
+        }
+    }
+
+    /// AppStorage doesn't support Date directly, so hour/minute are stored as separate Ints
+    /// and this bridges them to the Date binding DatePicker needs.
+    private func timeBinding(hour: Binding<Int>, minute: Binding<Int>) -> Binding<Date> {
+        Binding(
+            get: {
+                var components = DateComponents()
+                components.hour = hour.wrappedValue
+                components.minute = minute.wrappedValue
+                return Calendar.current.date(from: components) ?? .now
+            },
+            set: { newDate in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                hour.wrappedValue = components.hour ?? hour.wrappedValue
+                minute.wrappedValue = components.minute ?? minute.wrappedValue
+            }
+        )
+    }
+
+    private func refreshSchedule() async {
+        await mealReminderScheduler.refreshAuthorizationStatus()
+        let settings = MealReminderSettings.current()
+        let todaysTypes = Set(
+            localStore.mealEntries
+                .filter { Calendar.current.isDateInToday($0.date) }
+                .map(\.mealType)
+        )
+        await mealReminderScheduler.refreshSchedule(settings: settings, todaysLoggedMealTypes: todaysTypes)
     }
 }
 

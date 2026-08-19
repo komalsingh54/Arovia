@@ -125,12 +125,29 @@ final class LocalStore: ObservableObject {
         }
     }
 
+    func update(meal: MealEntry) {
+        guard let index = mealEntries.firstIndex(where: { $0.id == meal.id }) else { return }
+        do {
+            try mealsRepository.update(meal)
+            mealEntries[index] = meal
+            mealEntries.sort { $0.date > $1.date }
+            Task { await syncWithCloud() }
+        } catch {
+            reloadAll()
+        }
+    }
+
     func deleteMealEntries(at offsets: IndexSet) {
         let removed = offsets.map { mealEntries[$0] }
         mealEntries.remove(atOffsets: offsets)
         for meal in removed {
             try? mealsRepository.delete(id: meal.id)
         }
+    }
+
+    func delete(meal: MealEntry) {
+        mealEntries.removeAll { $0.id == meal.id }
+        try? mealsRepository.delete(id: meal.id)
     }
 
     // MARK: Scanned foods (barcode cache)

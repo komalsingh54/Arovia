@@ -7,6 +7,9 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject private var healthStore: HealthStore
+    @EnvironmentObject private var localStore: LocalStore
+    @EnvironmentObject private var mealReminderScheduler: MealReminderScheduler
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,5 +37,25 @@ struct ContentView: View {
             .tint(AppTheme.tint)
         }
         .background(AppTheme.screenBackground)
+        .task { await refreshMealReminders() }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active { Task { await refreshMealReminders() } }
+        }
+        .onChange(of: localStore.mealEntries) { _, _ in
+            Task { await refreshMealReminders() }
+        }
+    }
+
+    /// Re-syncs the whole reminder schedule: fresh authorization status, fresh "what's already
+    /// logged today" set. Cheap enough to call every time either of those might have changed.
+    private func refreshMealReminders() async {
+        await mealReminderScheduler.refreshAuthorizationStatus()
+        let settings = MealReminderSettings.current()
+        let todaysTypes = Set(
+            localStore.mealEntries
+                .filter { Calendar.current.isDateInToday($0.date) }
+                .map(\.mealType)
+        )
+        await mealReminderScheduler.refreshSchedule(settings: settings, todaysLoggedMealTypes: todaysTypes)
     }
 }
