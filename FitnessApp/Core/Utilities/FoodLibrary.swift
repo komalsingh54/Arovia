@@ -52,16 +52,42 @@ enum FoodLibrary {
         FoodItem(name: "Peanut Butter", servingDescription: "2 tbsp (32g)", servingGrams: 32, calories: 188, proteinGrams: 8, carbohydratesGrams: 6, fatGrams: 16),
     ]
 
-    static func search(_ query: String) -> [FoodItem] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        return items.filter {
-            $0.name.localizedCaseInsensitiveContains(trimmed) || ($0.brand?.localizedCaseInsensitiveContains(trimmed) ?? false)
+    /// Ranked so "chi" surfaces "Chicken Breast" before something where "chi" only appears
+    /// mid-word — plain `contains` treated every match equally, which made the list feel
+    /// unpredictable as soon as there was more than one loose match.
+    static func search(_ rawQuery: String) -> [FoodItem] {
+        let query = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return [] }
+
+        func rank(_ item: FoodItem) -> Int? {
+            let name = item.name.lowercased()
+            if name.hasPrefix(query) { return 0 }
+            if name.split(separator: " ").contains(where: { $0.hasPrefix(query) }) { return 1 }
+            if name.contains(query) { return 2 }
+            if let brand = item.brand?.lowercased(), brand.contains(query) { return 3 }
+            return nil
         }
+
+        return items
+            .compactMap { item in rank(item).map { (item, $0) } }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
     }
 
-    /// A handful of common items to show before the person types anything.
-    static var suggestions: [FoodItem] {
-        Array(items.prefix(6))
+    /// Curated per meal type rather than one fixed list for every context — showing "Vodka and
+    /// Soda" as a top breakfast suggestion made the suggestions feel random rather than useful.
+    /// Keyed by name (not stored on FoodItem itself) so this stays local-library-only and
+    /// doesn't need to thread a "meal affinity" concept through barcode/Open Food Facts results.
+    private static let suggestionNamesByMealType: [MealType: [String]] = [
+        .breakfast: ["Oats (Rolled, Dry)", "Eggs (Whole, Boiled)", "Greek Yoghurt (Plain)", "Wholemeal Bread", "Banana", "Milk (Semi-Skimmed)"],
+        .lunch: ["Chicken Breast (Grilled, Skinless)", "Basmati Rice (Cooked)", "Dal (Lentil Curry)", "Mixed Salad Greens", "Bread (Chappati or Roti)", "Quinoa (Cooked)"],
+        .dinner: ["Chicken Curry (Home-style)", "Salmon (Grilled)", "Paneer (Raw)", "Broccoli (Steamed)", "Naan Bread", "Basmati Rice (Cooked)"],
+        .snack: ["Almonds (Raw)", "Apple", "Greek Yoghurt (Plain)", "Peanut Butter", "Soft Bakes Red Berries", "Avocado"],
+    ]
+
+    static func suggestions(for mealType: MealType) -> [FoodItem] {
+        guard let names = suggestionNamesByMealType[mealType] else { return Array(items.prefix(6)) }
+        let byName = Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0) })
+        return names.compactMap { byName[$0] }
     }
 }

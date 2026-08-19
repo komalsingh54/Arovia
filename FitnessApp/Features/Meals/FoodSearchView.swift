@@ -25,18 +25,26 @@ struct FoodSearchView: View {
     /// search don't linger on screen after the person changes what they typed.
     @State private var lastOnlineSearchQuery: String?
 
+    /// Single source of truth for "is there actually a search in progress" — using raw `query`
+    /// directly for that meant a stray leading/trailing space (easy to end up with from
+    /// autocorrect or a fat-fingered space bar) made the view think there was a query when
+    /// there wasn't, hiding Suggestions/Recent and showing a confusing "no local matches" state.
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     private var results: [FoodItem] {
-        query.isEmpty ? FoodLibrary.suggestions : FoodLibrary.search(query)
+        trimmedQuery.isEmpty ? FoodLibrary.suggestions(for: mealType) : FoodLibrary.search(trimmedQuery)
     }
 
-    /// Distinct foods the person has actually logged before, most recent first — the most useful
-    /// "suggestions" since they're specific to what this person eats.
+    /// Distinct foods the person has actually logged before, most recent first, with anything
+    /// previously logged under this same meal type surfaced ahead of other meals' history —
+    /// the most useful "suggestions" since they're specific to what this person eats and when.
     private var recentFoods: [FoodItem] {
         var seen = Set<String>()
-        var result: [FoodItem] = []
+        var sameMealType: [FoodItem] = []
+        var otherMealType: [FoodItem] = []
         for meal in localStore.mealEntries where !seen.contains(meal.name.lowercased()) {
             seen.insert(meal.name.lowercased())
-            result.append(FoodItem(
+            let item = FoodItem(
                 name: meal.name,
                 servingDescription: "as logged",
                 servingGrams: 0,
@@ -44,10 +52,14 @@ struct FoodSearchView: View {
                 proteinGrams: meal.proteinGrams,
                 carbohydratesGrams: meal.carbohydratesGrams,
                 fatGrams: meal.fatGrams
-            ))
-            if result.count == 6 { break }
+            )
+            if meal.mealType == mealType {
+                sameMealType.append(item)
+            } else {
+                otherMealType.append(item)
+            }
         }
-        return result
+        return Array((sameMealType + otherMealType).prefix(6))
     }
 
     var body: some View {
@@ -59,7 +71,7 @@ struct FoodSearchView: View {
                     }
                 }
 
-                if !localStore.scannedFoods.isEmpty && query.isEmpty {
+                if !localStore.scannedFoods.isEmpty && trimmedQuery.isEmpty {
                     Section("Previously Scanned") {
                         ForEach(localStore.scannedFoods.prefix(5)) { food in
                             FoodRow(food: food) { selectedFood = food }
@@ -67,7 +79,7 @@ struct FoodSearchView: View {
                     }
                 }
 
-                if query.isEmpty && !recentFoods.isEmpty {
+                if trimmedQuery.isEmpty && !recentFoods.isEmpty {
                     Section("Recent") {
                         ForEach(recentFoods) { food in
                             FoodRow(food: food) { selectedFood = food }
@@ -75,9 +87,9 @@ struct FoodSearchView: View {
                     }
                 }
 
-                Section(query.isEmpty ? "Suggestions" : "In Arovia's Library") {
+                Section(trimmedQuery.isEmpty ? "Suggestions" : "In Arovia's Library") {
                     if results.isEmpty {
-                        Text(query.isEmpty ? "Start typing, scan a barcode, or search Open Food Facts online." : "No local matches for \"\(query)\".")
+                        Text(trimmedQuery.isEmpty ? "Start typing, scan a barcode, or search Open Food Facts online." : "No local matches for \"\(trimmedQuery)\".")
                             .font(.footnote)
                             .foregroundStyle(AppTheme.secondaryText)
                     } else {
@@ -87,7 +99,7 @@ struct FoodSearchView: View {
                     }
                 }
 
-                if !query.isEmpty {
+                if !trimmedQuery.isEmpty {
                     onlineSearchSection
                 }
 
@@ -109,9 +121,9 @@ struct FoodSearchView: View {
                 Task { await searchOnline() }
             }
             .onChange(of: query) {
-                // Clear stale results once the text no longer matches what was searched, rather
-                // than leaving a mismatched list on screen.
-                if query != lastOnlineSearchQuery {
+                // Clear stale results once the (trimmed) text no longer matches what was
+                // searched, rather than leaving a mismatched list on screen.
+                if trimmedQuery != lastOnlineSearchQuery {
                     onlineResults = []
                     onlineSearchError = nil
                 }
@@ -168,7 +180,7 @@ struct FoodSearchView: View {
                     }
                     .font(.footnote.weight(.semibold))
                 }
-            } else if lastOnlineSearchQuery == query && !onlineResults.isEmpty {
+            } else if lastOnlineSearchQuery == trimmedQuery && !onlineResults.isEmpty {
                 ForEach(onlineResults) { food in
                     FoodRow(food: food) { selectedFood = food }
                 }
@@ -176,7 +188,7 @@ struct FoodSearchView: View {
                 Button {
                     Task { await searchOnline() }
                 } label: {
-                    Label("Search Open Food Facts for \"\(query)\"", systemImage: "magnifyingglass")
+                    Label("Search Open Food Facts for \"\(trimmedQuery)\"", systemImage: "magnifyingglass")
                 }
             }
         }
@@ -205,7 +217,7 @@ struct FoodSearchView: View {
     /// Free-text search against Open Food Facts for when there's no barcode to scan, or the
     /// barcode wasn't found. Results with a barcode are cached the same way scanned items are.
     private func searchOnline() async {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = trimmedQuery
         guard !trimmed.isEmpty else { return }
 
         isSearchingOnline = true
@@ -220,7 +232,7 @@ struct FoodSearchView: View {
                 }
             }
             onlineResults = foods
-            lastOnlineSearchQuery = query
+            lastOnlineSearchQuery = trimmed
             if foods.isEmpty {
                 onlineSearchError = "No Open Food Facts results for \"\(trimmed)\". Try a shorter or more general term."
             }
