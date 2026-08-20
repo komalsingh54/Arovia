@@ -17,11 +17,13 @@ final class LocalStore: ObservableObject {
     @Published private(set) var journalEntries: [JournalEntry] = []
     @Published private(set) var mealEntries: [MealEntry] = []
     @Published private(set) var scannedFoods: [FoodItem] = []
+    @Published private(set) var waterEntries: [WaterEntry] = []
 
     private let goalsRepository: GoalsRepository
     private let journalRepository: JournalRepository
     private let mealsRepository: MealsRepository
     private let scannedFoodRepository: ScannedFoodRepository
+    private let waterRepository: WaterRepository
     private let cloudKitSyncService: CloudKitSyncing
 
     init(dependencies: AppDependencies) {
@@ -29,6 +31,7 @@ final class LocalStore: ObservableObject {
         self.journalRepository = dependencies.journalRepository
         self.mealsRepository = dependencies.mealsRepository
         self.scannedFoodRepository = dependencies.scannedFoodRepository
+        self.waterRepository = dependencies.waterRepository
         self.cloudKitSyncService = dependencies.cloudKitSyncService
         reloadAll()
         Task { await syncWithCloud() }
@@ -39,12 +42,14 @@ final class LocalStore: ObservableObject {
         goalsRepository: GoalsRepository,
         journalRepository: JournalRepository,
         mealsRepository: MealsRepository,
-        scannedFoodRepository: ScannedFoodRepository
+        scannedFoodRepository: ScannedFoodRepository,
+        waterRepository: WaterRepository
     ) {
         self.goalsRepository = goalsRepository
         self.journalRepository = journalRepository
         self.mealsRepository = mealsRepository
         self.scannedFoodRepository = scannedFoodRepository
+        self.waterRepository = waterRepository
         self.cloudKitSyncService = NoopCloudKitSyncService()
         reloadAll()
     }
@@ -150,6 +155,23 @@ final class LocalStore: ObservableObject {
         try? mealsRepository.delete(id: meal.id)
     }
 
+    // MARK: Water
+
+    func add(water: WaterEntry) {
+        do {
+            try waterRepository.insert(water)
+            waterEntries.append(water)
+            waterEntries.sort { $0.date > $1.date }
+        } catch {
+            reloadAll()
+        }
+    }
+
+    func delete(water: WaterEntry) {
+        waterEntries.removeAll { $0.id == water.id }
+        try? waterRepository.delete(id: water.id)
+    }
+
     // MARK: Scanned foods (barcode cache)
 
     /// Checks the local cache first — avoids a network call for barcodes already looked up.
@@ -179,5 +201,6 @@ final class LocalStore: ObservableObject {
         journalEntries = ((try? journalRepository.fetchAll()) ?? []).sorted { $0.date > $1.date }
         mealEntries = ((try? mealsRepository.fetchAll()) ?? []).sorted { $0.date > $1.date }
         scannedFoods = (try? scannedFoodRepository.fetchAll()) ?? []
+        waterEntries = ((try? waterRepository.fetchAll()) ?? []).sorted { $0.date > $1.date }
     }
 }

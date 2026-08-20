@@ -24,10 +24,11 @@ final class AppDependencies {
     let journalRepository: JournalRepository
     let mealsRepository: MealsRepository
     let scannedFoodRepository: ScannedFoodRepository
+    let waterRepository: WaterRepository
     let cloudKitSyncService: CloudKitSyncing
 
     init() {
-        let schema = Schema([GoalRecord.self, JournalRecord.self, MealRecord.self, ScannedFoodRecord.self])
+        let schema = Schema([GoalRecord.self, JournalRecord.self, MealRecord.self, ScannedFoodRecord.self, WaterRecord.self])
         let configuration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
         do {
@@ -45,6 +46,7 @@ final class AppDependencies {
         journalRepository = SwiftDataJournalRepository(context: context)
         mealsRepository = SwiftDataMealsRepository(context: context)
         scannedFoodRepository = SwiftDataScannedFoodRepository(context: context)
+        waterRepository = SwiftDataWaterRepository(context: context)
 
         if FeatureFlags.cloudKitEnabled {
             cloudKitSyncService = CloudKitSyncService(

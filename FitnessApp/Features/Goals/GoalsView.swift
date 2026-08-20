@@ -140,9 +140,35 @@ private struct ProgressEditorView: View {
 private struct GoalEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localStore: LocalStore
+    @EnvironmentObject private var healthStore: HealthStore
     @State private var title = ""
     @State private var targetValue = 10_000.0
     @State private var metric: GoalMetric = .steps
+
+    /// A round 10,000-step goal (or similar defaults) means nothing if your actual baseline is
+    /// 4,000 — it's either trivially easy or discouragingly far off. This suggests a target from
+    /// your own recent average plus a modest 10% stretch instead, rounded to something sensible.
+    /// It's a suggestion, not an auto-fill — tapping it is a deliberate choice, not a surprise.
+    private var suggestedTarget: Double? {
+        switch metric {
+        case .steps:
+            return roundedSuggestion(from: healthStore.weeklyTrends.steps, roundingTo: 500)
+        case .activeEnergy:
+            return roundedSuggestion(from: healthStore.weeklyTrends.activeEnergy, roundingTo: 50)
+        case .exerciseMinutes:
+            return roundedSuggestion(from: healthStore.weeklyTrends.exerciseMinutes, roundingTo: 5)
+        case .workouts, .custom:
+            return nil
+        }
+    }
+
+    private func roundedSuggestion(from points: [DailyMetricPoint], roundingTo step: Double) -> Double? {
+        guard !points.isEmpty else { return nil }
+        let average = points.reduce(0) { $0 + $1.value } / Double(points.count)
+        guard average > 0 else { return nil }
+        let stretched = average * 1.1
+        return (stretched / step).rounded() * step
+    }
 
     var body: some View {
         NavigationStack {
@@ -155,6 +181,19 @@ private struct GoalEditorView: View {
                 }
                 TextField("Target", value: $targetValue, format: .number)
                     .keyboardType(.decimalPad)
+
+                if let suggested = suggestedTarget, Int(suggested) != Int(targetValue) {
+                    Button {
+                        targetValue = suggested
+                    } label: {
+                        Label(
+                            "Suggested: \(Int(suggested)) \(metric.defaultUnit) — based on your 7-day average, plus a bit",
+                            systemImage: "wand.and.stars"
+                        )
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(AppTheme.tint)
+                }
             }
             .navigationTitle("New Goal")
             .toolbar {

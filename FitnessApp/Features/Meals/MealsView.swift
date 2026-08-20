@@ -13,6 +13,7 @@ struct MealsView: View {
     @AppStorage("dailyCarbsTarget") private var dailyCarbsTarget = 250.0
     @AppStorage("dailyFatTarget") private var dailyFatTarget = 65.0
     @AppStorage("dailyProteinTarget") private var dailyProteinTarget = 100.0
+    @AppStorage("dailyWaterTargetMl") private var dailyWaterTarget = 2_000.0
 
     @State private var selectedDate = Date.now
     @State private var isAddingMeal = false
@@ -30,6 +31,19 @@ struct MealsView: View {
     private var protein: Double { mealsForSelectedDay.reduce(0) { $0 + $1.proteinGrams } }
     private var isToday: Bool { calendar.isDateInToday(selectedDate) }
 
+    private var waterForSelectedDay: [WaterEntry] {
+        localStore.waterEntries.filter { calendar.isDate($0.date, inSameDayAs: selectedDate) }
+    }
+    private var waterConsumedMl: Double { waterForSelectedDay.reduce(0) { $0 + $1.amountMl } }
+
+    /// Backdates a quick-add to the selected day (keeping today's actual time of day) when
+    /// browsing a past date, rather than only allowing water logging for "today".
+    private var entryDate: Date {
+        if isToday { return .now }
+        let time = calendar.dateComponents([.hour, .minute, .second], from: .now)
+        return calendar.date(bySettingHour: time.hour ?? 12, minute: time.minute ?? 0, second: 0, of: selectedDate) ?? selectedDate
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -37,6 +51,7 @@ struct MealsView: View {
                     header
                     weekStrip
                     goalRings
+                    hydrationCard
                     if isToday { energyBalanceSummary }
 
                     ForEach(MealType.allCases) { type in
@@ -140,6 +155,41 @@ struct MealsView: View {
             GoalRingCard(title: "Protein", value: protein, target: dailyProteinTarget, unit: "g", color: .orange)
                 .staggeredAppear(3)
         }
+    }
+
+    private var hydrationCard: some View {
+        let progress = dailyWaterTarget > 0 ? min(waterConsumedMl / dailyWaterTarget, 1) : 0
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Hydration", systemImage: "drop.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.cyan)
+                Spacer()
+                Text("\(Int(waterConsumedMl)) / \(Int(dailyWaterTarget)) ml")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+            ProgressView(value: progress)
+                .tint(.cyan)
+            HStack(spacing: 10) {
+                ForEach([250, 500, 750], id: \.self) { amount in
+                    Button {
+                        Haptic.light()
+                        localStore.add(water: WaterEntry(amountMl: Double(amount), date: entryDate))
+                    } label: {
+                        Text("+\(amount) ml")
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(AppTheme.elevatedCardBackground, in: Capsule())
+                            .foregroundStyle(AppTheme.primaryText)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding()
+        .softCard(radius: 20)
     }
 
     private var energyBalanceSummary: some View {

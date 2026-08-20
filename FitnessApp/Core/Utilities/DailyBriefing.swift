@@ -28,6 +28,8 @@ struct DailyBriefing {
     let calorieTarget: Double
     let goals: [FitnessGoal]
     let journalEntries: [JournalEntry]
+    let todaysWaterMl: Double
+    let waterTargetMl: Double
     let now: Date
 
     init(
@@ -37,6 +39,8 @@ struct DailyBriefing {
         calorieTarget: Double,
         goals: [FitnessGoal],
         journalEntries: [JournalEntry],
+        todaysWaterMl: Double = 0,
+        waterTargetMl: Double = 2_000,
         now: Date = .now
     ) {
         self.metrics = metrics
@@ -45,15 +49,16 @@ struct DailyBriefing {
         self.calorieTarget = calorieTarget
         self.goals = goals
         self.journalEntries = journalEntries
+        self.todaysWaterMl = todaysWaterMl
+        self.waterTargetMl = waterTargetMl
         self.now = now
     }
 
-    /// The full narrative, 3-4 short sentences: how today's shaping up, the activity headline,
-    /// what's logged (and missing) at meals, then whichever of goals/journal has something
-    /// worth saying. Sections that have nothing meaningful to add are skipped rather than
-    /// padded out, so this doesn't turn into a wall of filler text on a quiet day.
+    /// The full narrative. Ends with `actionLine` rather than another observation — the whole
+    /// point of this upgrade is that a briefing which only describes the day isn't as useful as
+    /// one that also says what a small, concrete next step would be.
     var paragraph: String {
-        [openingLine, activityLine, nutritionLine, closingLine]
+        [openingLine, activityLine, nutritionLine, closingLine, actionLine]
             .compactMap { $0 }
             .joined(separator: " ")
     }
@@ -151,5 +156,52 @@ struct DailyBriefing {
         if streak >= 2 { return "You're on a \(streak)-day journaling streak." }
         if hour >= 18 && streak == 0 { return "You haven't journaled today — even a quick note helps spot patterns later." }
         return nil
+    }
+
+    // MARK: - Action: one small, concrete next step — the actual "what do I do" answer
+
+    /// Candidate actions, each carrying how far behind (0-1, higher = more behind) its own
+    /// target it is — used to pick the single most worthwhile suggestion rather than listing
+    /// everything that's slightly short, which would read as nagging rather than helpful.
+    private struct ActionCandidate {
+        let gap: Double
+        let text: String
+    }
+
+    private var actionLine: String? {
+        // Nothing actionable this late — the day's effectively over, and a suggestion to
+        // "go for a walk" at 11pm reads as nagging rather than helpful.
+        guard hour < 21 else { return nil }
+
+        let candidates = [stepsAction, exerciseAction, hydrationAction].compactMap { $0 }
+        guard let biggest = candidates.max(by: { $0.gap < $1.gap }), biggest.gap > 0.25 else { return nil }
+        return biggest.text
+    }
+
+    private var stepsAction: ActionCandidate? {
+        let goal = 10_000.0
+        let remaining = goal - metrics.steps
+        guard remaining > 500 else { return nil }
+        let gap = remaining / goal
+        // ~100 steps/minute is a reasonable average walking pace for a rough time estimate.
+        let minutes = max(5, Int((remaining / 100).rounded(.up)))
+        return ActionCandidate(gap: gap, text: "A \(minutes)-minute walk (~\(Int(remaining)) steps) would close today's step gap.")
+    }
+
+    private var exerciseAction: ActionCandidate? {
+        let goal = 30.0
+        let remaining = goal - metrics.exerciseMinutes
+        guard remaining > 5 else { return nil }
+        let gap = remaining / goal
+        return ActionCandidate(gap: gap, text: "\(Int(remaining)) more minutes of movement would hit today's exercise goal.")
+    }
+
+    private var hydrationAction: ActionCandidate? {
+        guard waterTargetMl > 0 else { return nil }
+        let remaining = waterTargetMl - todaysWaterMl
+        guard remaining > 250 else { return nil }
+        let gap = remaining / waterTargetMl
+        let glasses = max(1, Int((remaining / 250).rounded(.up)))
+        return ActionCandidate(gap: gap, text: "About \(glasses) more glass\(glasses == 1 ? "" : "es") of water would hit today's hydration target.")
     }
 }
