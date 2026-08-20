@@ -142,7 +142,7 @@ struct HealthOverviewView: View {
                 .frame(height: 140)
                 .accessibilityLabel("Resting heart rate over the last 7 days")
             } else {
-                Text("Resting heart rate needs an Apple Watch — it'll appear here automatically once available.")
+                Text("Resting heart rate needs an Apple Watch — the iPhone itself has no heart rate sensor. It'll appear here automatically once you've worn a Watch overnight.")
                     .font(.caption)
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.8))
             }
@@ -158,7 +158,7 @@ struct HealthOverviewView: View {
             if let insight = insights.sleepInsight {
                 Text(insight).font(.footnote).foregroundStyle(AppTheme.secondaryText)
             } else {
-                Text("Sleep tracked in Apple Health or your Apple Watch will appear here automatically.")
+                Text("Needs either an Apple Watch worn overnight, or \"Track Sleep with iPhone\" turned on in Health app → Browse → Sleep (it's off by default).")
                     .font(.footnote)
                     .foregroundStyle(AppTheme.secondaryText)
             }
@@ -269,6 +269,11 @@ struct HealthOverviewView: View {
                 DiagnosticRow(label: "Weight", value: healthStore.metrics.latestWeightKg.map { String(format: "%.1f kg", $0) } ?? "nil")
 
                 Text("A metric reading 0 or nil here, while Apple's own Health app also shows nothing for it, means there's genuinely no data recorded — not an app bug. If Health.app has data but this doesn't match, screenshot this panel.")
+                    .font(.caption2)
+                    .foregroundStyle(AppTheme.secondaryText.opacity(0.8))
+                    .padding(.top, 4)
+
+                Text("One Apple limitation worth knowing: for data types you only read (not write), iOS deliberately never tells any app — including this one — whether you specifically denied access to that type. It only tells us whether we've asked at all. So the only way to fully confirm a permission is granted is Settings → Privacy & Security → Health → Arovia, and to check the toggle for that specific type is on.")
                     .font(.caption2)
                     .foregroundStyle(AppTheme.secondaryText.opacity(0.8))
                     .padding(.top, 4)
