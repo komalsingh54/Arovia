@@ -9,6 +9,7 @@ struct ContentView: View {
     @EnvironmentObject private var healthStore: HealthStore
     @EnvironmentObject private var localStore: LocalStore
     @EnvironmentObject private var mealReminderScheduler: MealReminderScheduler
+    @EnvironmentObject private var wellnessReminderScheduler: WellnessReminderScheduler
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -37,12 +38,26 @@ struct ContentView: View {
             .tint(AppTheme.tint)
         }
         .background(AppTheme.screenBackground)
-        .task { await refreshMealReminders() }
+        .task {
+            await refreshMealReminders()
+            await refreshWellnessReminders()
+        }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active { Task { await refreshMealReminders() } }
+            if newPhase == .active {
+                Task {
+                    await refreshMealReminders()
+                    await refreshWellnessReminders()
+                }
+            }
         }
         .onChange(of: localStore.mealEntries) { _, _ in
             Task { await refreshMealReminders() }
+        }
+        .onChange(of: localStore.waterEntries) { _, _ in
+            Task { await refreshWellnessReminders() }
+        }
+        .onChange(of: healthStore.metrics) { _, _ in
+            Task { await refreshWellnessReminders() }
         }
     }
 
@@ -57,5 +72,18 @@ struct ContentView: View {
                 .map(\.mealType)
         )
         await mealReminderScheduler.refreshSchedule(settings: settings, todaysLoggedMealTypes: todaysTypes)
+    }
+
+    private func refreshWellnessReminders() async {
+        await wellnessReminderScheduler.refreshAuthorizationStatus()
+        let settings = WellnessReminderSettings.current()
+        let todaysWater = localStore.waterEntries
+            .filter { Calendar.current.isDateInToday($0.date) }
+            .reduce(0) { $0 + $1.amountMl }
+        await wellnessReminderScheduler.refreshSchedule(
+            settings: settings,
+            todaysWaterMl: todaysWater,
+            todaysSteps: healthStore.metrics.steps
+        )
     }
 }

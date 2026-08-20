@@ -50,6 +50,7 @@ struct SettingsView: View {
                     }
 
                     MealRemindersSection()
+                    WellnessRemindersSection()
 
                     SettingsGroup(title: "iCloud Sync") {
                         LabeledContent("Goals, journal & meals", value: FeatureFlags.cloudKitEnabled ? "Enabled" : "Local only")
@@ -94,6 +95,98 @@ struct SettingsView: View {
         case .failed: "Try again"
         case .idle: "Not connected"
         }
+    }
+}
+
+private struct WellnessRemindersSection: View {
+    @EnvironmentObject private var wellnessReminderScheduler: WellnessReminderScheduler
+    @EnvironmentObject private var localStore: LocalStore
+    @EnvironmentObject private var healthStore: HealthStore
+
+    @AppStorage(WellnessReminderSettings.Keys.hydrationEnabled) private var hydrationEnabled = false
+    @AppStorage(WellnessReminderSettings.Keys.movementEnabled) private var movementEnabled = false
+    @AppStorage(WellnessReminderSettings.Keys.bedtimeEnabled) private var bedtimeEnabled = false
+    @AppStorage(WellnessReminderSettings.Keys.bedtimeHour) private var bedtimeHour = WellnessReminderSettings.defaultBedtimeHour
+    @AppStorage(WellnessReminderSettings.Keys.bedtimeMinute) private var bedtimeMinute = WellnessReminderSettings.defaultBedtimeMinute
+
+    var body: some View {
+        SettingsGroup(title: "Wellness Reminders") {
+            if wellnessReminderScheduler.authorizationStatus == .denied && (hydrationEnabled || movementEnabled || bedtimeEnabled) {
+                Text("Notifications are turned off for Arovia in iOS Settings, so reminders won't appear. Enable them in Settings → Notifications → Arovia.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.energy)
+            }
+
+            Toggle("Hydration nudges", isOn: toggleBinding($hydrationEnabled))
+                .tint(.cyan)
+            Text("Only fires if you're behind pace on today's water target — won't nag if you're already on track.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.mutedText)
+
+            Divider().background(AppTheme.border)
+
+            Toggle("Movement nudges", isOn: toggleBinding($movementEnabled))
+                .tint(AppTheme.tint)
+            Text("Same idea for steps — a nudge only when today's step count is meaningfully behind pace.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.mutedText)
+
+            Divider().background(AppTheme.border)
+
+            HStack {
+                Toggle("Bedtime wind-down", isOn: toggleBinding($bedtimeEnabled))
+                    .tint(AppTheme.secondaryAccent)
+                if bedtimeEnabled {
+                    DatePicker("", selection: bedtimeBinding, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .fixedSize()
+                        .onChange(of: bedtimeHour) { Task { await refreshSchedule() } }
+                        .onChange(of: bedtimeMinute) { Task { await refreshSchedule() } }
+                }
+            }
+        }
+        .task { await refreshSchedule() }
+    }
+
+    private func toggleBinding(_ base: Binding<Bool>) -> Binding<Bool> {
+        Binding(get: { base.wrappedValue }, set: { newValue in
+            base.wrappedValue = newValue
+            Task {
+                if newValue && wellnessReminderScheduler.authorizationStatus != .authorized {
+                    await wellnessReminderScheduler.requestAuthorization()
+                }
+                await refreshSchedule()
+            }
+        })
+    }
+
+    private var bedtimeBinding: Binding<Date> {
+        Binding(
+            get: {
+                var components = DateComponents()
+                components.hour = bedtimeHour
+                components.minute = bedtimeMinute
+                return Calendar.current.date(from: components) ?? .now
+            },
+            set: { newDate in
+                let components = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                bedtimeHour = components.hour ?? bedtimeHour
+                bedtimeMinute = components.minute ?? bedtimeMinute
+            }
+        )
+    }
+
+    private func refreshSchedule() async {
+        await wellnessReminderScheduler.refreshAuthorizationStatus()
+        let settings = WellnessReminderSettings.current()
+        let todaysWater = localStore.waterEntries
+            .filter { Calendar.current.isDateInToday($0.date) }
+            .reduce(0) { $0 + $1.amountMl }
+        await wellnessReminderScheduler.refreshSchedule(
+            settings: settings,
+            todaysWaterMl: todaysWater,
+            todaysSteps: healthStore.metrics.steps
+        )
     }
 }
 

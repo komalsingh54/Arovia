@@ -9,6 +9,7 @@ struct DashboardView: View {
     @EnvironmentObject private var healthStore: HealthStore
     @EnvironmentObject private var localStore: LocalStore
     @AppStorage("dailyCalorieTarget") private var dailyCalorieTarget = 2_000.0
+    @AppStorage("dailyWaterTargetMl") private var dailyWaterTarget = 2_000.0
 
     var body: some View {
         NavigationStack {
@@ -158,7 +159,11 @@ struct DashboardView: View {
             todaysMeals: localStore.mealEntries.filter { Calendar.current.isDateInToday($0.date) },
             calorieTarget: dailyCalorieTarget,
             goals: localStore.goals,
-            journalEntries: localStore.journalEntries
+            journalEntries: localStore.journalEntries,
+            todaysWaterMl: localStore.waterEntries
+                .filter { Calendar.current.isDateInToday($0.date) }
+                .reduce(0) { $0 + $1.amountMl },
+            waterTargetMl: dailyWaterTarget
         )
     }
 
