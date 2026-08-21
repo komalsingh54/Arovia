@@ -47,6 +47,23 @@ struct SettingsView: View {
                         }
                         .foregroundStyle(AppTheme.tint)
                         .font(.subheadline.weight(.semibold))
+
+                        Divider().background(AppTheme.border)
+
+                        Toggle("Write to Apple Health", isOn: Binding(
+                            get: { healthStore.hasWriteAccess },
+                            set: { newValue in
+                                if newValue {
+                                    Task { await healthStore.requestWriteAuthorization() }
+                                } else {
+                                    healthStore.disableWriteAccess()
+                                }
+                            }
+                        ))
+                        .tint(AppTheme.tint)
+                        Text("Sends meals, water, and manually logged workouts to Apple Health so they show up there too. Off by default — Arovia only reads Health data until you turn this on.")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.mutedText)
                     }
 
                     MealRemindersSection()

@@ -11,6 +11,7 @@ struct ContentView: View {
     @EnvironmentObject private var mealReminderScheduler: MealReminderScheduler
     @EnvironmentObject private var wellnessReminderScheduler: WellnessReminderScheduler
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,6 +39,9 @@ struct ContentView: View {
             .tint(AppTheme.tint)
         }
         .background(AppTheme.screenBackground)
+        .fullScreenCover(isPresented: Binding(get: { !hasCompletedOnboarding }, set: { hasCompletedOnboarding = !$0 })) {
+            OnboardingView()
+        }
         .task {
             await refreshMealReminders()
             await refreshWellnessReminders()

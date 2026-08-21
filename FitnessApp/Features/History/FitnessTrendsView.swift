@@ -15,10 +15,23 @@ struct FitnessTrendsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Insights")
-                        .font(.largeTitle.weight(.bold))
-                    Text("Patterns and comparisons, not just numbers.")
-                        .foregroundStyle(AppTheme.secondaryText)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Insights")
+                                .font(.largeTitle.weight(.bold))
+                            Text("Patterns and comparisons, not just numbers.")
+                                .foregroundStyle(AppTheme.secondaryText)
+                        }
+                        Spacer()
+                        NavigationLink { WeeklyRecapView() } label: {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.tint)
+                                .frame(width: 36, height: 36)
+                                .background(AppTheme.elevatedCardBackground, in: Circle())
+                        }
+                        .accessibilityLabel("Weekly Recap")
+                    }
                 }
 
                 WeekRingStrip(
