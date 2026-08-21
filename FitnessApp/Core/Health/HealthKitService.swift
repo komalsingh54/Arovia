@@ -139,6 +139,9 @@ struct HealthKitService {
             activityType: hkActivityType(for: type),
             start: start,
             end: start.addingTimeInterval(duration),
+            workoutEvents: nil,
+            totalEnergyBurned: nil,
+            totalDistance: nil,
             metadata: [HKMetadataKeyWasUserEntered: true]
         )
         try await healthStore.save(workout)
