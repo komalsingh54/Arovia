@@ -42,6 +42,22 @@ struct HealthKitService {
         return types
     }
 
+    /// Write access is opt-in (see Settings → "Write to Apple Health") and deliberately narrow —
+    /// only the nutrition/water/workout data this app itself generates, never anything read-only
+    /// like heart rate. Keeps the write side minimal and easy to reason about.
+    static var shareTypes: Set<HKSampleType> {
+        var types: Set<HKSampleType> = [HKObjectType.workoutType()]
+        let quantityIdentifiers: [HKQuantityTypeIdentifier] = [
+            .dietaryWater, .dietaryEnergyConsumed, .dietaryProtein, .dietaryCarbohydrates, .dietaryFatTotal
+        ]
+        for identifier in quantityIdentifiers {
+            if let type = HKQuantityType.quantityType(forIdentifier: identifier) {
+                types.insert(type)
+            }
+        }
+        return types
+    }
+
     /// Sample types only (subset of `readTypes`, since `HKObserverQuery` needs `HKSampleType`).
     static var observableSampleTypes: Set<HKSampleType> {
         Set(readTypes.compactMap { $0 as? HKSampleType })
@@ -69,6 +85,77 @@ struct HealthKitService {
 
     func requestAuthorization() async throws {
         try await healthStore.requestAuthorization(toShare: [], read: Self.readTypes)
+    }
+
+    /// Requested separately from read access, only when the person turns on
+    /// Settings → "Write to Apple Health" — never bundled into the initial read-permission
+    /// prompt, so turning Arovia on doesn't silently ask to write data nobody agreed to yet.
+    func requestWriteAuthorization() async throws {
+        try await healthStore.requestAuthorization(toShare: Self.shareTypes, read: [])
+    }
+
+    // MARK: Writing (opt-in — see Settings → "Write to Apple Health")
+
+    /// Writes a water sample. `externalID` (the app's own UUID for this entry) is stored in
+    /// metadata so a future edit/delete could look the sample back up — HealthKit samples are
+    /// otherwise immutable once written.
+    func writeWater(amountMl: Double, date: Date, externalID: UUID) async throws {
+        guard let type = HKQuantityType.quantityType(forIdentifier: .dietaryWater) else { return }
+        let quantity = HKQuantity(unit: .literUnit(with: .milli), doubleValue: amountMl)
+        let sample = HKQuantitySample(
+            type: type, quantity: quantity, start: date, end: date,
+            metadata: [HKMetadataKeyExternalUUID: externalID.uuidString]
+        )
+        try await healthStore.save(sample)
+    }
+
+    /// Writes a meal as several dietary samples sharing one `HKCorrelation` — this is what makes
+    /// it show up as a single grouped entry in Apple Health's own Nutrition log instead of four
+    /// disconnected numbers.
+    func writeMeal(_ meal: MealEntry) async throws {
+        guard let energyType = HKQuantityType.quantityType(forIdentifier: .dietaryEnergyConsumed),
+              let proteinType = HKQuantityType.quantityType(forIdentifier: .dietaryProtein),
+              let carbType = HKQuantityType.quantityType(forIdentifier: .dietaryCarbohydrates),
+              let fatType = HKQuantityType.quantityType(forIdentifier: .dietaryFatTotal),
+              let foodCorrelationType = HKObjectType.correlationType(forIdentifier: .food) else { return }
+
+        let metadata = [HKMetadataKeyExternalUUID: meal.id.uuidString, HKMetadataKeyFoodType: meal.name]
+        let samples: Set<HKSample> = [
+            HKQuantitySample(type: energyType, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: meal.calories), start: meal.date, end: meal.date, metadata: metadata),
+            HKQuantitySample(type: proteinType, quantity: HKQuantity(unit: .gram(), doubleValue: meal.proteinGrams), start: meal.date, end: meal.date, metadata: metadata),
+            HKQuantitySample(type: carbType, quantity: HKQuantity(unit: .gram(), doubleValue: meal.carbohydratesGrams), start: meal.date, end: meal.date, metadata: metadata),
+            HKQuantitySample(type: fatType, quantity: HKQuantity(unit: .gram(), doubleValue: meal.fatGrams), start: meal.date, end: meal.date, metadata: metadata),
+        ]
+        let correlation = HKCorrelation(type: foodCorrelationType, start: meal.date, end: meal.date, objects: samples, metadata: metadata)
+        try await healthStore.save(correlation)
+    }
+
+    /// A simple manually-logged workout (no route/samples, just type + timing) — written to
+    /// HealthKit rather than kept as a separate in-app model so it shows up in "Recent Workouts"
+    /// through the exact same `fetchRecentWorkouts()` query as Watch-recorded workouts, with no
+    /// merge logic needed anywhere in the app.
+    func saveManualWorkout(type: ManualWorkoutType, start: Date, duration: TimeInterval) async throws {
+        let workout = HKWorkout(
+            activityType: hkActivityType(for: type),
+            start: start,
+            end: start.addingTimeInterval(duration),
+            metadata: [HKMetadataKeyWasUserEntered: true]
+        )
+        try await healthStore.save(workout)
+    }
+
+    private func hkActivityType(for type: ManualWorkoutType) -> HKWorkoutActivityType {
+        switch type {
+        case .walk: .walking
+        case .run: .running
+        case .cycling: .cycling
+        case .strengthTraining: .traditionalStrengthTraining
+        case .yoga: .yoga
+        case .swimming: .swimming
+        case .hiking: .hiking
+        case .hiit: .highIntensityIntervalTraining
+        case .other: .other
+        }
     }
 
     // MARK: Today's snapshot

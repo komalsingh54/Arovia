@@ -285,6 +285,7 @@ private struct FoodQuantityView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localStore: LocalStore
+    @EnvironmentObject private var healthStore: HealthStore
     @State private var servings: Double = 1
 
     private var scaledEntry: MealEntry {
@@ -318,6 +319,7 @@ private struct FoodQuantityView: View {
                     Button("Add") {
                         Haptic.success()
                         localStore.add(meal: scaledEntry)
+                        Task { await healthStore.writeToHealth(meal: scaledEntry) }
                         onSaved()
                     }
                 }
@@ -335,6 +337,7 @@ private struct CustomFoodEditorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localStore: LocalStore
+    @EnvironmentObject private var healthStore: HealthStore
     @State private var name = ""
     @State private var selectedType: MealType
     @State private var calories = 0.0
@@ -374,7 +377,7 @@ private struct CustomFoodEditorView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        localStore.add(meal: MealEntry(
+                        let entry = MealEntry(
                             name: name,
                             mealType: selectedType,
                             calories: calories,
@@ -382,7 +385,9 @@ private struct CustomFoodEditorView: View {
                             carbohydratesGrams: carbohydrates,
                             fatGrams: fat,
                             date: date
-                        ))
+                        )
+                        localStore.add(meal: entry)
+                        Task { await healthStore.writeToHealth(meal: entry) }
                         onSaved()
                     }
                     .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || calories <= 0)

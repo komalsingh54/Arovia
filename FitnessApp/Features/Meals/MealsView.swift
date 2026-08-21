@@ -175,7 +175,9 @@ struct MealsView: View {
                 ForEach([250, 500, 750], id: \.self) { amount in
                     Button {
                         Haptic.light()
-                        localStore.add(water: WaterEntry(amountMl: Double(amount), date: entryDate))
+                        let entry = WaterEntry(amountMl: Double(amount), date: entryDate)
+                        localStore.add(water: entry)
+                        Task { await healthStore.writeToHealth(water: entry) }
                     } label: {
                         Text("+\(amount) ml")
                             .font(.caption.weight(.semibold))

@@ -8,6 +8,7 @@ import SwiftUI
 struct ActivityView: View {
     @EnvironmentObject private var healthStore: HealthStore
     @State private var workoutToAnnotate: WorkoutSummary?
+    @State private var isLoggingWorkout = false
 
     var body: some View {
         NavigationStack {
@@ -25,9 +26,14 @@ struct ActivityView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Recent Workouts")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(AppTheme.primaryText)
+                        HStack {
+                            Text("Recent Workouts")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(AppTheme.primaryText)
+                            Spacer()
+                            Button("Log Workout", systemImage: "plus") { isLoggingWorkout = true }
+                                .font(.caption.weight(.semibold))
+                        }
 
                         if healthStore.recentWorkouts.isEmpty {
                             SectionCard {
@@ -75,6 +81,66 @@ struct ActivityView: View {
             .refreshable { await healthStore.refresh() }
             .sheet(item: $workoutToAnnotate) { workout in
                 WorkoutNoteEditor(workout: workout)
+            }
+            .sheet(isPresented: $isLoggingWorkout) {
+                ManualWorkoutEditorView()
+            }
+        }
+    }
+}
+
+private struct ManualWorkoutEditorView: View {
+    @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var healthStore: HealthStore
+
+    @State private var type: ManualWorkoutType = .walk
+    @State private var startDate = Date.now
+    @State private var durationMinutes = 30.0
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Workout") {
+                    Picker("Type", selection: $type) {
+                        ForEach(ManualWorkoutType.allCases) { type in
+                            Label(type.title, systemImage: type.systemImage).tag(type)
+                        }
+                    }
+                    DatePicker("When", selection: $startDate, in: ...Date.now)
+                    Stepper(value: $durationMinutes, in: 5...300, step: 5) {
+                        LabeledContent("Duration", value: "\(Int(durationMinutes)) min")
+                    }
+                }
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(AppTheme.energy)
+                }
+                Text("Saved to Apple Health, the same place Watch-recorded workouts come from — it'll show up in Recent Workouts right alongside them.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.mutedText)
+            }
+            .navigationTitle("Log Workout")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            isSaving = true
+                            do {
+                                try await healthStore.saveManualWorkout(type: type, start: startDate, duration: durationMinutes * 60)
+                                dismiss()
+                            } catch {
+                                errorMessage = "Couldn't save to Apple Health: \(error.localizedDescription)"
+                            }
+                            isSaving = false
+                        }
+                    }
+                    .disabled(isSaving)
+                }
             }
         }
     }
