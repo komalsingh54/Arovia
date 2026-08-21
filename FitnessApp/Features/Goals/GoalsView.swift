@@ -19,8 +19,9 @@ struct GoalsView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 10) {
-                            ForEach(localStore.goals) { goal in
+                            ForEach(Array(localStore.goals.enumerated()), id: \.element.id) { index, goal in
                                 GoalRow(goal: goal, metrics: healthStore.metrics) { goalToUpdate = goal }
+                                    .staggeredAppear(index)
                                     .contextMenu {
                                         Button("Delete", systemImage: "trash", role: .destructive) {
                                             if let index = localStore.goals.firstIndex(where: { $0.id == goal.id }) {

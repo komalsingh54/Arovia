@@ -117,7 +117,7 @@ struct DashboardView: View {
                                     Button("Connect Health") {
                                         Task { await healthStore.requestAuthorization() }
                                     }
-                                    .buttonStyle(.borderedProminent)
+                                    .buttonStyle(.appPrimary)
                                 }
                             }
                         }

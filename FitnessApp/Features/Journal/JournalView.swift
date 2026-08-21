@@ -18,13 +18,14 @@ struct JournalView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: 10) {
-                            ForEach(localStore.journalEntries) { entry in
+                            ForEach(Array(localStore.journalEntries.enumerated()), id: \.element.id) { index, entry in
                                 Button {
                                     entryToEdit = entry
                                 } label: {
                                     JournalEntryRow(entry: entry)
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(.pressable)
+                                .staggeredAppear(index)
                                 .contextMenu {
                                     Button("Delete", systemImage: "trash", role: .destructive) {
                                         if let index = localStore.journalEntries.firstIndex(where: { $0.id == entry.id }) {

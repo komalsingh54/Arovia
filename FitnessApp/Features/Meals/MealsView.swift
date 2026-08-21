@@ -186,7 +186,7 @@ struct MealsView: View {
                             .background(AppTheme.elevatedCardBackground, in: Capsule())
                             .foregroundStyle(AppTheme.primaryText)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
                 }
             }
         }
@@ -332,7 +332,7 @@ private struct MealRow: View {
                     .font(.subheadline)
                     .foregroundStyle(AppTheme.mutedText)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
         }
         .padding(.vertical, 10)
         .accessibilityElement(children: .ignore)

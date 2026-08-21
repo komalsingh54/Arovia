@@ -132,6 +132,51 @@ extension ButtonStyle where Self == PressableButtonStyle {
     static var pressable: PressableButtonStyle { PressableButtonStyle() }
 }
 
+// MARK: - Branded primary/secondary buttons
+
+/// Filled, tint-colored, fully rounded, with the same press feedback as `.pressable` — the
+/// on-brand replacement for stock `.borderedProminent`, which renders as generic iOS blue-ish
+/// system chrome and carries none of the app's own color identity.
+struct AppPrimaryButtonStyle: ButtonStyle {
+    var isDestructive = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(isDestructive ? .white : AppTheme.screenBackground)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(isDestructive ? AppTheme.energy : AppTheme.tint, in: Capsule())
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+/// Outlined counterpart — for the secondary action next to a primary button (e.g. "Skip").
+struct AppSecondaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(AppTheme.primaryText)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(AppTheme.elevatedCardBackground, in: Capsule())
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == AppPrimaryButtonStyle {
+    static var appPrimary: AppPrimaryButtonStyle { AppPrimaryButtonStyle() }
+    static var appDestructive: AppPrimaryButtonStyle { AppPrimaryButtonStyle(isDestructive: true) }
+}
+
+extension ButtonStyle where Self == AppSecondaryButtonStyle {
+    static var appSecondary: AppSecondaryButtonStyle { AppSecondaryButtonStyle() }
+}
+
 // MARK: - Staggered entrance
 
 /// Fades + slides a view in on appear, delayed by index — applied to grids/lists so content

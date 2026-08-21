@@ -54,13 +54,14 @@ struct WorkoutsView: View {
                                 .font(.title3.weight(.bold))
                                 .foregroundStyle(AppTheme.primaryText)
                             VStack(spacing: 10) {
-                                ForEach(healthStore.recentWorkouts) { workout in
+                                ForEach(Array(healthStore.recentWorkouts.enumerated()), id: \.element.id) { index, workout in
                                     Button {
                                         workoutToAnnotate = workout
                                     } label: {
                                         WorkoutRow(workout: workout, note: note(for: workout))
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.pressable)
+                                    .staggeredAppear(index)
                                 }
                             }
                         }

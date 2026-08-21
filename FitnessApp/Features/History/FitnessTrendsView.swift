@@ -376,7 +376,7 @@ private struct WeekRingStrip: View {
                         }
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pressable)
                 .accessibilityLabel(date.formatted(date: .complete, time: .omitted))
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }

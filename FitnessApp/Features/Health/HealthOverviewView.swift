@@ -83,8 +83,7 @@ struct HealthOverviewView: View {
                 Button("Connect Health") {
                     Task { await healthStore.requestAuthorization() }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.tint)
+                .buttonStyle(.appPrimary)
             }
         }
     }
