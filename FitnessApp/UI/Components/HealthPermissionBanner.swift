@@ -49,7 +49,7 @@ struct HealthPermissionBanner: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable)
             .disabled(isRequesting)
             .background(AppTheme.cardBackground)
             .overlay(alignment: .bottom) {

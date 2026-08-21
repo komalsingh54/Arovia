@@ -22,7 +22,7 @@ struct SettingsView: View {
                     NavigationLink { ProfileView() } label: {
                         SettingsRow(title: "Profile", systemImage: "person.crop.circle")
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pressable)
 
                     SettingsGroup(title: "Preferences") {
                         Toggle("Use metric units", isOn: $usesMetricUnits)

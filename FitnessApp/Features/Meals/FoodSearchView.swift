@@ -271,7 +271,7 @@ private struct FoodRow: View {
                     .foregroundStyle(AppTheme.secondaryText)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pressable)
     }
 }
 

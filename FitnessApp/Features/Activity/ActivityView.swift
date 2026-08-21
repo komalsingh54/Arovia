@@ -42,11 +42,12 @@ struct ActivityView: View {
                             }
                         } else {
                             VStack(spacing: 10) {
-                                ForEach(healthStore.recentWorkouts.prefix(5)) { workout in
+                                ForEach(Array(healthStore.recentWorkouts.prefix(5).enumerated()), id: \.element.id) { index, workout in
                                     Button { workoutToAnnotate = workout } label: {
                                         WorkoutSummaryRow(workout: workout)
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(.pressable)
+                                    .staggeredAppear(index)
                                 }
                             }
                         }
@@ -68,7 +69,7 @@ struct ActivityView: View {
                                 QuickLinkRow(title: "Insights", systemImage: "waveform.path.ecg")
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.pressable)
                     }
                 }
                 .padding()

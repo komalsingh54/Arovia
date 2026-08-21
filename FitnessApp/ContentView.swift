@@ -39,6 +39,11 @@ struct ContentView: View {
             .tint(AppTheme.tint)
         }
         .background(AppTheme.screenBackground)
+        // One line, applies everywhere: every .largeTitle/.headline/.caption/etc across the
+        // whole app switches from default San Francisco to SF Pro Rounded. This is what was
+        // actually missing for "designed" typography — the 250+ existing .font(...) call sites
+        // don't need touching individually since they all resolve through this environment value.
+        .fontDesign(.rounded)
         .fullScreenCover(isPresented: Binding(get: { !hasCompletedOnboarding }, set: { hasCompletedOnboarding = !$0 })) {
             OnboardingView()
         }

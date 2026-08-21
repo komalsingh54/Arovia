@@ -33,6 +33,7 @@ struct OnboardingView: View {
             .indexViewStyle(.page(backgroundDisplayMode: .always))
         }
         .background(AppTheme.screenBackground)
+        .fontDesign(.rounded)
     }
 
     private var welcomePage: some View {
@@ -92,8 +93,7 @@ struct OnboardingView: View {
                 localStore.add(goal: FitnessGoal(title: "Daily Steps", targetValue: stepGoal, unit: "steps", metric: .steps))
                 withAnimation { page = 3 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(AppTheme.tint)
+            .buttonStyle(.appPrimary)
             .padding(.horizontal, 32)
             .padding(.bottom, 40)
         }
@@ -153,8 +153,7 @@ private struct OnboardingPage: View {
                 .padding(.horizontal, 32)
             Spacer()
             Button(primaryTitle, action: primaryAction)
-                .buttonStyle(.borderedProminent)
-                .tint(AppTheme.tint)
+                .buttonStyle(.appPrimary)
                 .padding(.horizontal, 32)
 
             if let secondaryTitle, let secondaryAction {
