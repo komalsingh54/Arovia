@@ -38,34 +38,37 @@ struct DashboardView: View {
 
                     // Bento grid — a featured ring card, a tall hydration card, and compact
                     // stat cells, mirroring the reference's mixed-size composition instead of
-                    // a flat row of equal cards. Same underlying metrics as before.
+                    // a flat row of equal cards. Deliberately only two colors across the whole
+                    // grid — tint for activity metrics, secondaryAccent for body/nutrition —
+                    // instead of a different hue per card, which read as arbitrary rather than
+                    // designed.
                     HStack(alignment: .top, spacing: 12) {
                         BentoRingCard(
                             title: "Steps", value: healthStore.metrics.steps, unit: "steps",
-                            systemImage: "figure.walk", color: AppTheme.glowSteps, goalValue: 10_000
+                            systemImage: "figure.walk", color: AppTheme.tint, goalValue: 10_000
                         )
                         .staggeredAppear(0)
 
                         BentoTallCard(
                             title: "Hydration", value: todaysWaterMl, unit: "ml",
-                            systemImage: "drop.fill", color: .cyan, goalValue: dailyWaterTarget
+                            systemImage: "drop.fill", color: AppTheme.secondaryAccent, goalValue: dailyWaterTarget
                         )
                         .staggeredAppear(1)
                     }
 
                     HStack(spacing: 12) {
-                        BentoStatCard(title: "Active Energy", value: healthStore.metrics.activeEnergy, unit: "kcal", systemImage: "flame.fill", color: AppTheme.glowEnergy)
+                        BentoStatCard(title: "Active Energy", value: healthStore.metrics.activeEnergy, unit: "kcal", systemImage: "flame.fill", color: AppTheme.tint)
                             .staggeredAppear(2)
-                        BentoStatCard(title: "Exercise", value: healthStore.metrics.exerciseMinutes, unit: "min", systemImage: "figure.run", color: AppTheme.glowExercise)
+                        BentoStatCard(title: "Exercise", value: healthStore.metrics.exerciseMinutes, unit: "min", systemImage: "figure.run", color: AppTheme.tint)
                             .staggeredAppear(3)
                     }
 
                     HStack(spacing: 12) {
-                        BentoStatCard(title: "Eaten", value: todaysCaloriesEaten, unit: "kcal", systemImage: "fork.knife", color: AppTheme.energy)
+                        BentoStatCard(title: "Eaten", value: todaysCaloriesEaten, unit: "kcal", systemImage: "fork.knife", color: AppTheme.secondaryAccent)
                             .staggeredAppear(4)
                         BentoStatCard(
                             title: "Resting HR", value: healthStore.metrics.restingHeartRate ?? 0, unit: "bpm",
-                            systemImage: "heart.fill", color: AppTheme.ringMove,
+                            systemImage: "heart.fill", color: AppTheme.secondaryAccent,
                             placeholder: healthStore.metrics.restingHeartRate == nil
                         )
                         .staggeredAppear(5)

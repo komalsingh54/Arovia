@@ -9,8 +9,10 @@
 
 import SwiftUI
 
-/// The featured card — icon badge, big animated ring, number+unit. Meant to anchor the grid
-/// the way the reference's "Walk" card does.
+/// The featured card — a bold fill in the accent color (not just a tinted icon on a neutral
+/// card), matching the reference's solid black "Walk" card that's impossible to miss. Text and
+/// ring track use `AppTheme.screenBackground` for contrast — the same on-accent convention
+/// already used on filled buttons elsewhere, so it reads correctly in both Light and Dark mode.
 struct BentoRingCard: View {
     let title: String
     let value: Double
@@ -27,29 +29,29 @@ struct BentoRingCard: View {
             iconBadge
             Spacer(minLength: 0)
             ZStack {
-                AnimatedRing(progress: progress, color: color, lineWidth: 9)
+                AnimatedRing(progress: progress, color: AppTheme.screenBackground, lineWidth: 9)
                     .frame(width: 84, height: 84)
                 VStack(spacing: 0) {
                     AnimatedNumberText(value: value, precision: precision)
                         .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.primaryText)
+                        .foregroundStyle(AppTheme.screenBackground)
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
                     Text(unit)
                         .font(.caption2)
-                        .foregroundStyle(AppTheme.secondaryText)
+                        .foregroundStyle(AppTheme.screenBackground.opacity(0.7))
                 }
                 .padding(.horizontal, 6)
             }
             .frame(maxWidth: .infinity)
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
+                .foregroundStyle(AppTheme.screenBackground)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 220)
-        .background(AppTheme.elevatedCardBackground, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .background(color, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue("\(Int(value)) \(unit), \(Int(progress * 100)) percent of goal")
@@ -58,14 +60,14 @@ struct BentoRingCard: View {
     private var iconBadge: some View {
         Image(systemName: systemImage)
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(color)
+            .foregroundStyle(AppTheme.screenBackground)
             .frame(width: 34, height: 34)
-            .background(color.opacity(0.16), in: Circle())
+            .background(AppTheme.screenBackground.opacity(0.18), in: Circle())
     }
 }
 
-/// Tall accent card — icon badge, progress bar, number — mirrors the reference's tall "Water"
-/// card. Used for hydration on Arovia's dashboard.
+/// Tall accent card — bold fill, same on-accent contrast convention as BentoRingCard — mirrors
+/// the reference's solid blue "Water" card. Used for hydration on Arovia's dashboard.
 struct BentoTallCard: View {
     let title: String
     let value: Double
@@ -81,30 +83,30 @@ struct BentoTallCard: View {
         VStack(alignment: .leading, spacing: 14) {
             Image(systemName: systemImage)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(color)
+                .foregroundStyle(AppTheme.screenBackground)
                 .frame(width: 34, height: 34)
-                .background(color.opacity(0.16), in: Circle())
+                .background(AppTheme.screenBackground.opacity(0.18), in: Circle())
 
             Spacer(minLength: 0)
 
             VStack(alignment: .leading, spacing: 4) {
                 AnimatedNumberText(value: value, precision: precision)
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(AppTheme.primaryText)
+                    .foregroundStyle(AppTheme.screenBackground)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                 Text(unit)
                     .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText)
+                    .foregroundStyle(AppTheme.screenBackground.opacity(0.7))
             }
 
             Capsule()
-                .fill(color.opacity(0.18))
+                .fill(AppTheme.screenBackground.opacity(0.22))
                 .frame(height: 6)
                 .overlay(alignment: .leading) {
                     GeometryReader { proxy in
                         Capsule()
-                            .fill(color)
+                            .fill(AppTheme.screenBackground)
                             .frame(width: proxy.size.width * progress)
                             .animation(.spring(response: 0.7, dampingFraction: 0.85), value: progress)
                     }
@@ -112,12 +114,12 @@ struct BentoTallCard: View {
 
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.primaryText)
+                .foregroundStyle(AppTheme.screenBackground)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 220)
-        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .background(color, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue("\(Int(value)) \(unit), \(Int(progress * 100)) percent of goal")
