@@ -150,25 +150,51 @@ private struct ManualWorkoutEditorView: View {
 private struct WorkoutSummaryRow: View {
     let workout: WorkoutSummary
 
+    /// Duration relative to a 60-minute reference session — gives the progress bar real
+    /// meaning instead of a decorative fill, while staying honest that it's not implying a
+    /// "start workout" action Arovia doesn't support (hence a note icon, not a play triangle).
+    private var sessionProgress: Double { min(workout.duration / 3600, 1) }
+
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "figure.run")
-                .font(.title3)
-                .foregroundStyle(AppTheme.tint)
-                .frame(width: 40, height: 40)
-                .background(AppTheme.elevatedCardBackground, in: Circle())
-            VStack(alignment: .leading, spacing: 4) {
-                Text(workout.title)
-                    .font(.headline)
-                    .foregroundStyle(AppTheme.primaryText)
-                Text(workout.startDate, format: .dateTime.weekday(.abbreviated).month().day())
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                Image(systemName: "figure.run")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.tint)
+                    .frame(width: 40, height: 40)
+                    .background(AppTheme.tint.opacity(0.16), in: Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(workout.title)
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.primaryText)
+                    Text(workout.startDate, format: .dateTime.weekday(.abbreviated).month().day())
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+                Spacer()
+                Image(systemName: "square.and.pencil")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.mutedText)
+                    .frame(width: 30, height: 30)
+                    .background(AppTheme.elevatedCardBackground, in: Circle())
             }
-            Spacer()
-            Text(workout.durationDescription)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
+            HStack(spacing: 10) {
+                Capsule()
+                    .fill(AppTheme.tint.opacity(0.18))
+                    .frame(height: 5)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { proxy in
+                            Capsule()
+                                .fill(AppTheme.tint)
+                                .frame(width: proxy.size.width * sessionProgress)
+                                .animation(.spring(response: 0.7, dampingFraction: 0.85), value: sessionProgress)
+                        }
+                    }
+                Text(workout.durationDescription)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize()
+            }
         }
         .padding()
         .softCard(radius: 20)

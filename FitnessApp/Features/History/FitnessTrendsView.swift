@@ -57,7 +57,7 @@ struct FitnessTrendsView: View {
                     points: healthStore.weeklyTrends.distanceMeters.map { DailyMetricPoint(date: $0.date, value: $0.value / 1000) },
                     unit: "km",
                     color: .cyan,
-                    style: .bar
+                    style: .line
                 )
 
                 WeeklyTrendChart(
@@ -73,7 +73,7 @@ struct FitnessTrendsView: View {
                     points: healthStore.weeklyTrends.sleepHours,
                     unit: "hrs",
                     color: .indigo,
-                    style: .bar
+                    style: .line
                 )
 
                 JournalWeekSummary(entries: localStore.journalEntries)
@@ -144,11 +144,21 @@ private struct WeeklyTrendChart: View {
                             .foregroundStyle(color.gradient)
                             .cornerRadius(6)
                     case .line:
+                        // Catmull-Rom interpolation is what gives this the flowing "wavy chart"
+                        // look instead of sharp point-to-point segments, plus a gradient fade
+                        // under the curve rather than a flat translucent fill.
                         LineMark(x: .value("Day", point.date, unit: .day), y: .value(unit, point.value))
                             .foregroundStyle(color)
-                            .symbol(Circle())
+                            .interpolationMethod(.catmullRom)
+                            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                            .symbol {
+                                Circle().fill(color).frame(width: 6, height: 6)
+                            }
                         AreaMark(x: .value("Day", point.date, unit: .day), y: .value(unit, point.value))
-                            .foregroundStyle(color.opacity(0.12))
+                            .foregroundStyle(
+                                LinearGradient(colors: [color.opacity(0.28), color.opacity(0.02)], startPoint: .top, endPoint: .bottom)
+                            )
+                            .interpolationMethod(.catmullRom)
                     }
                 }
                 .chartXAxis { AxisMarks(values: .stride(by: .day)) { AxisValueLabel(format: .dateTime.weekday(.abbreviated)) } }
