@@ -95,32 +95,50 @@ private struct WorkoutRow: View {
     let workout: WorkoutSummary
     let note: JournalEntry?
 
+    private var sessionProgress: Double { min(workout.duration / 3600, 1) }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "figure.run")
-                .foregroundStyle(AppTheme.tint)
-                .frame(width: 40, height: 40)
-                .background(AppTheme.elevatedCardBackground, in: Circle())
-            VStack(alignment: .leading, spacing: 4) {
-                Text(workout.title).foregroundStyle(AppTheme.primaryText).font(.headline)
-                Text(workout.startDate, format: .dateTime.weekday(.abbreviated).month().day().hour().minute())
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.mutedText)
-                if let note, !note.details.isEmpty {
-                    Text(note.details)
-                        .font(.footnote)
-                        .foregroundStyle(AppTheme.secondaryText)
-                        .lineLimit(2)
-                } else {
-                    Text("Tap to add a note")
-                        .font(.footnote)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "figure.run")
+                    .foregroundStyle(AppTheme.tint)
+                    .frame(width: 40, height: 40)
+                    .background(AppTheme.tint.opacity(0.16), in: Circle())
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(workout.title).foregroundStyle(AppTheme.primaryText).font(.headline)
+                    Text(workout.startDate, format: .dateTime.weekday(.abbreviated).month().day().hour().minute())
+                        .font(.caption)
                         .foregroundStyle(AppTheme.mutedText)
+                    if let note, !note.details.isEmpty {
+                        Text(note.details)
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .lineLimit(2)
+                    } else {
+                        Text("Tap to add a note")
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.mutedText)
+                    }
                 }
+                Spacer()
             }
-            Spacer()
-            Text(workout.durationDescription)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
+            HStack(spacing: 10) {
+                Capsule()
+                    .fill(AppTheme.tint.opacity(0.18))
+                    .frame(height: 5)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { proxy in
+                            Capsule()
+                                .fill(AppTheme.tint)
+                                .frame(width: proxy.size.width * sessionProgress)
+                                .animation(.spring(response: 0.7, dampingFraction: 0.85), value: sessionProgress)
+                        }
+                    }
+                Text(workout.durationDescription)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                    .fixedSize()
+            }
         }
         .padding()
         .softCard(radius: 20)

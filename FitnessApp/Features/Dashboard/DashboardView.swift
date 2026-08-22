@@ -36,24 +36,39 @@ struct DashboardView: View {
                         }
                     }
 
-                    // Hero carousel — steps, active energy, and exercise all get the featured
-                    // glow treatment; swipe between them rather than flattening into a grid.
-                    GlowHeroCarousel(items: heroMetrics) { metric in
-                        GlowHeroCard(
-                            title: metric.title, value: metric.value, unit: metric.unit,
-                            systemImage: metric.systemImage, color: metric.color,
-                            goalValue: metric.goalValue, precision: metric.precision
+                    // Bento grid — a featured ring card, a tall hydration card, and compact
+                    // stat cells, mirroring the reference's mixed-size composition instead of
+                    // a flat row of equal cards. Same underlying metrics as before.
+                    HStack(alignment: .top, spacing: 12) {
+                        BentoRingCard(
+                            title: "Steps", value: healthStore.metrics.steps, unit: "steps",
+                            systemImage: "figure.walk", color: AppTheme.glowSteps, goalValue: 10_000
                         )
-                    }
-                    .staggeredAppear(0)
+                        .staggeredAppear(0)
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        QuietMetricCard(title: "Distance", value: healthStore.metrics.distanceMeters / 1000, unit: "km", systemImage: "location.fill", precision: 1)
-                            .staggeredAppear(1)
-                        QuietMetricCard(title: "Resting HR", value: healthStore.metrics.restingHeartRate ?? 0, unit: "bpm", systemImage: "heart.fill", placeholder: healthStore.metrics.restingHeartRate == nil)
+                        BentoTallCard(
+                            title: "Hydration", value: todaysWaterMl, unit: "ml",
+                            systemImage: "drop.fill", color: .cyan, goalValue: dailyWaterTarget
+                        )
+                        .staggeredAppear(1)
+                    }
+
+                    HStack(spacing: 12) {
+                        BentoStatCard(title: "Active Energy", value: healthStore.metrics.activeEnergy, unit: "kcal", systemImage: "flame.fill", color: AppTheme.glowEnergy)
                             .staggeredAppear(2)
-                        QuietMetricCard(title: "Sleep", value: healthStore.metrics.sleepHours ?? 0, unit: "hrs", systemImage: "bed.double.fill", precision: 1, placeholder: healthStore.metrics.sleepHours == nil)
+                        BentoStatCard(title: "Exercise", value: healthStore.metrics.exerciseMinutes, unit: "min", systemImage: "figure.run", color: AppTheme.glowExercise)
                             .staggeredAppear(3)
+                    }
+
+                    HStack(spacing: 12) {
+                        BentoStatCard(title: "Eaten", value: todaysCaloriesEaten, unit: "kcal", systemImage: "fork.knife", color: AppTheme.energy)
+                            .staggeredAppear(4)
+                        BentoStatCard(
+                            title: "Resting HR", value: healthStore.metrics.restingHeartRate ?? 0, unit: "bpm",
+                            systemImage: "heart.fill", color: AppTheme.ringMove,
+                            placeholder: healthStore.metrics.restingHeartRate == nil
+                        )
+                        .staggeredAppear(5)
                     }
 
                     if healthStore.status == .ready {
@@ -133,23 +148,16 @@ struct DashboardView: View {
         }
     }
 
-    private struct HeroMetric: Identifiable {
-        let id: String
-        let title: String
-        let value: Double
-        let unit: String
-        let systemImage: String
-        let color: Color
-        var goalValue: Double? = nil
-        var precision: Int = 0
+    private var todaysWaterMl: Double {
+        localStore.waterEntries
+            .filter { Calendar.current.isDateInToday($0.date) }
+            .reduce(0) { $0 + $1.amountMl }
     }
 
-    private var heroMetrics: [HeroMetric] {
-        [
-            HeroMetric(id: "steps", title: "Steps", value: healthStore.metrics.steps, unit: "steps", systemImage: "figure.walk", color: AppTheme.glowSteps, goalValue: 10_000),
-            HeroMetric(id: "energy", title: "Active energy", value: healthStore.metrics.activeEnergy, unit: "kcal", systemImage: "flame.fill", color: AppTheme.glowEnergy, goalValue: 500),
-            HeroMetric(id: "exercise", title: "Exercise", value: healthStore.metrics.exerciseMinutes, unit: "min", systemImage: "figure.run", color: AppTheme.glowExercise, goalValue: 30)
-        ]
+    private var todaysCaloriesEaten: Double {
+        localStore.mealEntries
+            .filter { Calendar.current.isDateInToday($0.date) }
+            .reduce(0) { $0 + $1.calories }
     }
 
     private var dailyBriefing: DailyBriefing {
@@ -160,9 +168,7 @@ struct DashboardView: View {
             calorieTarget: dailyCalorieTarget,
             goals: localStore.goals,
             journalEntries: localStore.journalEntries,
-            todaysWaterMl: localStore.waterEntries
-                .filter { Calendar.current.isDateInToday($0.date) }
-                .reduce(0) { $0 + $1.amountMl },
+            todaysWaterMl: todaysWaterMl,
             waterTargetMl: dailyWaterTarget
         )
     }
@@ -198,42 +204,6 @@ struct DashboardView: View {
         case .failed: "We couldn’t refresh your health data. Try again later."
         default: "Your daily health snapshot will appear here."
         }
-    }
-}
-
-/// Smaller, quieter card for secondary stats that don't need the hero glow treatment.
-private struct QuietMetricCard: View {
-    let title: String
-    let value: Double
-    let unit: String
-    let systemImage: String
-    var precision: Int = 0
-    var placeholder: Bool = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(AppTheme.secondaryText)
-            if placeholder {
-                Text("—").font(.title3.bold())
-            } else {
-                AnimatedNumberText(value: value, precision: precision)
-                    .font(.title3.bold())
-                    .foregroundStyle(AppTheme.primaryText)
-            }
-            Text(placeholder ? "\(title)" : "\(unit) · \(title)")
-                .font(.caption2)
-                .foregroundStyle(AppTheme.secondaryText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .softCard(radius: 16)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(placeholder ? "no data" : "\(Int(value)) \(unit)")
     }
 }
 
