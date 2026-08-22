@@ -68,6 +68,7 @@ struct SettingsView: View {
 
                     MealRemindersSection()
                     WellnessRemindersSection()
+                    MotionDetectionSection()
 
                     SettingsGroup(title: "iCloud Sync") {
                         LabeledContent("Goals, journal & meals", value: FeatureFlags.cloudKitEnabled ? "Enabled" : "Local only")
@@ -204,6 +205,41 @@ private struct WellnessRemindersSection: View {
             todaysWaterMl: todaysWater,
             todaysSteps: healthStore.metrics.steps
         )
+    }
+}
+
+private struct MotionDetectionSection: View {
+    @EnvironmentObject private var motionDetector: MotionActivityDetector
+    @EnvironmentObject private var healthStore: HealthStore
+    @AppStorage("motionDetectionEnabled") private var isEnabled = false
+
+    var body: some View {
+        SettingsGroup(title: "Automatic Workout Detection") {
+            Toggle("Suggest workouts from motion", isOn: Binding(
+                get: { isEnabled },
+                set: { newValue in
+                    isEnabled = newValue
+                    if newValue {
+                        Task { await motionDetector.refresh(existingWorkouts: healthStore.recentWorkouts) }
+                    }
+                }
+            ))
+            .tint(AppTheme.tint)
+
+            if motionDetector.authorizationStatus == .denied {
+                Text("Motion & Fitness access is off for Arovia in iOS Settings. Enable it in Settings → Privacy & Security → Motion & Fitness → Arovia.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.energy)
+            } else if !motionDetector.isAvailable {
+                Text("This device doesn't support motion activity detection.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.mutedText)
+            }
+
+            Text("Uses your iPhone's built-in motion sensor — the same one Apple's own apps use — to notice walks, runs, or rides of 8+ minutes you haven't logged, and offers to add them. No Apple Watch needed. Checked when you open Activity, not continuously in the background.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.mutedText)
+        }
     }
 }
 
