@@ -277,6 +277,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Arovia;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Arovia reads your activity data to show your personal fitness dashboard.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Arovia uses motion data to notice walks, runs, and rides you have not logged yet.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Arovia uses the camera to scan barcodes and look up nutrition info for packaged foods.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Arovia reads your activity data to show your personal fitness dashboard.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -316,6 +318,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Arovia;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Arovia reads your activity data to show your personal fitness dashboard.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Arovia uses motion data to notice walks, runs, and rides you have not logged yet.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Arovia uses the camera to scan barcodes and look up nutrition info for packaged foods.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Arovia reads your activity data to show your personal fitness dashboard.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

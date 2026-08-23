@@ -7,6 +7,8 @@ import SwiftUI
 
 struct ActivityView: View {
     @EnvironmentObject private var healthStore: HealthStore
+    @EnvironmentObject private var motionDetector: MotionActivityDetector
+    @AppStorage("motionDetectionEnabled") private var motionDetectionEnabled = false
     @State private var workoutToAnnotate: WorkoutSummary?
     @State private var isLoggingWorkout = false
 
@@ -23,6 +25,24 @@ struct ActivityView: View {
                         MetricCard(title: "Active Energy", value: healthStore.metrics.activeEnergy.formatted(.number.precision(.fractionLength(0))), unit: "kcal", systemImage: "flame.fill")
                         MetricCard(title: "Exercise", value: healthStore.metrics.exerciseMinutes.formatted(.number.precision(.fractionLength(0))), unit: "minutes", systemImage: "figure.run")
                         MetricCard(title: "Workouts", value: healthStore.metrics.workoutCount.formatted(), unit: "today", systemImage: "dumbbell.fill")
+                    }
+
+                    if motionDetectionEnabled && !motionDetector.suggestions.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Noticed on your iPhone")
+                                .font(.title3.weight(.bold))
+                                .foregroundStyle(AppTheme.primaryText)
+                            ForEach(motionDetector.suggestions) { session in
+                                DetectedSessionCard(session: session) {
+                                    Task {
+                                        try? await healthStore.saveManualWorkout(type: session.type, start: session.start, duration: session.duration)
+                                        motionDetector.dismiss(session)
+                                    }
+                                } onDismiss: {
+                                    motionDetector.dismiss(session)
+                                }
+                            }
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
@@ -78,8 +98,14 @@ struct ActivityView: View {
             .clearsFloatingTabBar()
             .navigationTitle("Activity")
             .navigationBarTitleDisplayMode(.inline)
-            .task { await healthStore.refresh() }
-            .refreshable { await healthStore.refresh() }
+            .task {
+                await healthStore.refresh()
+                if motionDetectionEnabled { await motionDetector.refresh(existingWorkouts: healthStore.recentWorkouts) }
+            }
+            .refreshable {
+                await healthStore.refresh()
+                if motionDetectionEnabled { await motionDetector.refresh(existingWorkouts: healthStore.recentWorkouts) }
+            }
             .sheet(item: $workoutToAnnotate) { workout in
                 WorkoutNoteEditor(workout: workout)
             }
@@ -144,6 +170,47 @@ private struct ManualWorkoutEditorView: View {
                 }
             }
         }
+    }
+}
+
+private struct DetectedSessionCard: View {
+    let session: DetectedActivitySession
+    let onLog: () -> Void
+    let onDismiss: () -> Void
+
+    private var durationText: String {
+        let minutes = Int(session.duration / 60)
+        return "\(minutes) min"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: session.type.systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryAccent)
+                    .frame(width: 36, height: 36)
+                    .background(AppTheme.secondaryAccent.opacity(0.16), in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Looks like a \(durationText) \(session.type.title.lowercased())")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.primaryText)
+                    Text(session.start, format: .dateTime.weekday(.abbreviated).hour().minute())
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.mutedText)
+                }
+                Spacer()
+            }
+            HStack(spacing: 10) {
+                Button("Dismiss", action: onDismiss)
+                    .buttonStyle(.appSecondary)
+                Button("Log it", action: onLog)
+                    .buttonStyle(.appPrimary)
+            }
+        }
+        .padding()
+        .softCard(radius: 20)
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 }
 

@@ -15,6 +15,7 @@ struct FitnessAppApp: App {
     @StateObject private var localStore: LocalStore
     @StateObject private var mealReminderScheduler = MealReminderScheduler()
     @StateObject private var wellnessReminderScheduler = WellnessReminderScheduler()
+    @StateObject private var motionActivityDetector = MotionActivityDetector()
 
     init() {
         let dependencies = AppDependencies()
@@ -29,6 +30,7 @@ struct FitnessAppApp: App {
                 .environmentObject(localStore)
                 .environmentObject(mealReminderScheduler)
                 .environmentObject(wellnessReminderScheduler)
+                .environmentObject(motionActivityDetector)
                 // No forced color scheme — follows the device's Light/Dark setting.
         }
     }
