@@ -3,9 +3,8 @@
 //  Arovia
 //
 //  First-launch flow only — gated by @AppStorage("hasCompletedOnboarding") in ContentView.
-//  Four short steps rather than a long form: welcome, connect Health (optional, skippable),
-//  set starting targets (with a nudge toward personalized suggestions once Health is connected
-//  since that unlocks the same 7-day-average calculation Goals already uses), done.
+//  A short feature tour (Welcome, Health, Activity, Meals, Sleep, Insights) using the app's
+//  own illustration set, then the two functional steps: connect Health, set starting targets.
 //
 
 import SwiftUI
@@ -25,9 +24,14 @@ struct OnboardingView: View {
         VStack(spacing: 0) {
             TabView(selection: $page) {
                 welcomePage.tag(0)
-                connectHealthPage.tag(1)
-                goalsPage.tag(2)
-                donePage.tag(3)
+                tourPage(image: "Health", title: "Know your health", subtitle: "Steps, heart rate, sleep, and more — synced automatically from Apple Health.", next: 2).tag(1)
+                tourPage(image: "Activity", title: "Move with purpose", subtitle: "Every workout counted, whether it's from your Watch or logged by hand.", next: 3).tag(2)
+                tourPage(image: "Meals", title: "Fuel your day", subtitle: "Log meals in seconds and see how they add up against your targets.", next: 4).tag(3)
+                tourPage(image: "Sleep", title: "Rest and recover", subtitle: "Sleep is part of the picture too, not an afterthought.", next: 5).tag(4)
+                tourPage(image: "Insights", title: "Insights that guide you", subtitle: "Not just charts — plain-language suggestions for what to do next.", next: 6).tag(5)
+                connectHealthPage.tag(6)
+                goalsPage.tag(7)
+                donePage.tag(8)
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -38,7 +42,7 @@ struct OnboardingView: View {
 
     private var welcomePage: some View {
         OnboardingPage(
-            systemImage: "sparkles",
+            imageName: "Welcome",
             title: "Welcome to Arovia",
             subtitle: "Your activity, nutrition, and journal, brought together with insights that actually tell you what to do next.",
             primaryTitle: "Get Started",
@@ -46,9 +50,19 @@ struct OnboardingView: View {
         )
     }
 
+    private func tourPage(image: String, title: String, subtitle: String, next: Int) -> some View {
+        OnboardingPage(
+            imageName: image,
+            title: title,
+            subtitle: subtitle,
+            primaryTitle: "Next",
+            primaryAction: { withAnimation { page = next } }
+        )
+    }
+
     private var connectHealthPage: some View {
         OnboardingPage(
-            systemImage: "heart.text.square.fill",
+            imageName: "Health",
             title: "Connect Apple Health",
             subtitle: "Arovia reads your steps, workouts, heart rate, and sleep from Health to build your dashboard. You can change this anytime in Settings.",
             primaryTitle: isConnectingHealth ? "Connecting…" : "Connect Health",
@@ -57,11 +71,11 @@ struct OnboardingView: View {
                     isConnectingHealth = true
                     await healthStore.requestAuthorization()
                     isConnectingHealth = false
-                    withAnimation { page = 2 }
+                    withAnimation { page = 7 }
                 }
             },
             secondaryTitle: "Skip for now",
-            secondaryAction: { withAnimation { page = 2 } }
+            secondaryAction: { withAnimation { page = 7 } }
         )
     }
 
@@ -91,7 +105,7 @@ struct OnboardingView: View {
 
             Button("Continue") {
                 localStore.add(goal: FitnessGoal(title: "Daily Steps", targetValue: stepGoal, unit: "steps", metric: .steps))
-                withAnimation { page = 3 }
+                withAnimation { page = 8 }
             }
             .buttonStyle(.appPrimary)
             .padding(.horizontal, 32)
@@ -127,8 +141,12 @@ struct OnboardingView: View {
     }
 }
 
+/// Either a real illustration (`imageName`, from Assets.xcassets/Onboarding) or an SF Symbol
+/// fallback (`systemImage`, used for the Done page which has no matching illustration) —
+/// exactly one should be provided.
 private struct OnboardingPage: View {
-    let systemImage: String
+    var imageName: String?
+    var systemImage: String?
     let title: String
     let subtitle: String
     let primaryTitle: String
@@ -139,9 +157,16 @@ private struct OnboardingPage: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: systemImage)
-                .font(.system(size: 56))
-                .foregroundStyle(AppTheme.tint)
+            if let imageName {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 240, height: 240)
+            } else if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 56))
+                    .foregroundStyle(AppTheme.tint)
+            }
             Text(title)
                 .font(.title.weight(.bold))
                 .foregroundStyle(AppTheme.primaryText)
