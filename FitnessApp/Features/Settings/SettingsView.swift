@@ -7,6 +7,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("usesMetricUnits") private var usesMetricUnits = true
+    @AppStorage(AppThemePreference.storageKey) private var themePreference: AppThemePreference = .system
     @EnvironmentObject private var healthStore: HealthStore
     @EnvironmentObject private var localStore: LocalStore
     @State private var isSyncing = false
@@ -27,6 +28,15 @@ struct SettingsView: View {
                     SettingsGroup(title: "Preferences") {
                         Toggle("Use metric units", isOn: $usesMetricUnits)
                             .tint(AppTheme.tint)
+                    }
+
+                    SettingsGroup(title: "Appearance") {
+                        Picker("Theme", selection: $themePreference) {
+                            ForEach(AppThemePreference.allCases) { preference in
+                                Label(preference.title, systemImage: preference.systemImage).tag(preference)
+                            }
+                        }
+                        .pickerStyle(.segmented)
                     }
 
                     SettingsGroup(title: "Health") {

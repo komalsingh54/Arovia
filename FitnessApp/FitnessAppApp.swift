@@ -16,6 +16,7 @@ struct FitnessAppApp: App {
     @StateObject private var mealReminderScheduler = MealReminderScheduler()
     @StateObject private var wellnessReminderScheduler = WellnessReminderScheduler()
     @StateObject private var motionActivityDetector = MotionActivityDetector()
+    @AppStorage(AppThemePreference.storageKey) private var themePreference: AppThemePreference = .system
 
     init() {
         let dependencies = AppDependencies()
@@ -31,7 +32,10 @@ struct FitnessAppApp: App {
                 .environmentObject(mealReminderScheduler)
                 .environmentObject(wellnessReminderScheduler)
                 .environmentObject(motionActivityDetector)
-                // No forced color scheme — follows the device's Light/Dark setting.
+                // System by default (nil = don't override), Light/Dark available in
+                // Settings > Appearance for anyone who wants to pin it regardless of device
+                // setting.
+                .preferredColorScheme(themePreference.colorScheme)
         }
     }
 }
