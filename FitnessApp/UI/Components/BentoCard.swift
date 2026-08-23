@@ -43,7 +43,6 @@ struct BentoRingCard: View {
                 }
                 .padding(.horizontal, 6)
             }
-            .frame(maxWidth: .infinity)
             Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(AppTheme.screenBackground)
