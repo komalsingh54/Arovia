@@ -48,6 +48,11 @@ struct BentoRingCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Shared fixed height across BentoRingCard and BentoTallCard so the two sit level in
+        // the Dashboard's top row — sized tight to the ring card's own natural content (icon +
+        // 84pt ring + title + padding), not the old oversized 220 that caused the first
+        // complaint. The tall card's shorter content just centers within the same height.
+        .frame(height: 200)
         .background(color, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
@@ -113,6 +118,11 @@ struct BentoTallCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Shared fixed height across BentoRingCard and BentoTallCard so the two sit level in
+        // the Dashboard's top row — sized tight to the ring card's own natural content (icon +
+        // 84pt ring + title + padding), not the old oversized 220 that caused the first
+        // complaint. The tall card's shorter content just centers within the same height.
+        .frame(height: 200)
         .background(color, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
