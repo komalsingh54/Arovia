@@ -27,7 +27,6 @@ struct BentoRingCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             iconBadge
-            Spacer(minLength: 0)
             ZStack {
                 AnimatedRing(progress: progress, color: AppTheme.screenBackground, lineWidth: 9)
                     .frame(width: 84, height: 84)
@@ -49,7 +48,6 @@ struct BentoRingCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 220)
         .background(color, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
@@ -86,8 +84,6 @@ struct BentoTallCard: View {
                 .frame(width: 34, height: 34)
                 .background(AppTheme.screenBackground.opacity(0.18), in: Circle())
 
-            Spacer(minLength: 0)
-
             VStack(alignment: .leading, spacing: 4) {
                 AnimatedNumberText(value: value, precision: precision)
                     .font(.title2.weight(.bold))
@@ -117,7 +113,6 @@ struct BentoTallCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 220)
         .background(color, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
