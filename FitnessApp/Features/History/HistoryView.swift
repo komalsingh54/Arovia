@@ -17,15 +17,19 @@ struct HistoryView: View {
                 ForEach(filteredEntries) { entry in
                     HStack {
                         Label(entry.title, systemImage: entry.category.systemImage)
+                            .foregroundStyle(AppTheme.primaryText)
                         Spacer()
                         Text(entry.date.formatted(date: .abbreviated, time: .shortened))
-                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.mutedText)
                     }
+                    .listRowBackground(AppTheme.cardBackground)
                 }
             }
         }
         .scrollContentBackground(.hidden)
         .background(AppTheme.screenBackground)
+        .clearsFloatingTabBar()
         .navigationTitle("History")
         .searchable(text: $searchText, prompt: "Search journal")
     }

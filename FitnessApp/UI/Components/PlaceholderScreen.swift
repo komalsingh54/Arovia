@@ -29,11 +29,7 @@ struct SectionCard<Content: View>: View {
         content
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(AppTheme.border, lineWidth: 1)
-            }
+            .softCard()
     }
 }
 
@@ -50,6 +46,7 @@ struct MetricCard: View {
                 .foregroundStyle(AppTheme.tint)
             Text(value)
                 .font(.title2.bold())
+                .foregroundStyle(AppTheme.primaryText)
             Text(unit)
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.secondaryText)
@@ -59,13 +56,9 @@ struct MetricCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.border, lineWidth: 1)
-        }
+        .softCard()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue("\(value) \(unit)")
-}
+    }
 }

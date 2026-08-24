@@ -4,192 +4,388 @@
 //
 
 import SwiftUI
+import Charts
 
 struct MealsView: View {
     @EnvironmentObject private var localStore: LocalStore
     @EnvironmentObject private var healthStore: HealthStore
     @AppStorage("dailyCalorieTarget") private var dailyCalorieTarget = 2_000.0
+    @AppStorage("dailyCarbsTarget") private var dailyCarbsTarget = 250.0
+    @AppStorage("dailyFatTarget") private var dailyFatTarget = 65.0
+    @AppStorage("dailyProteinTarget") private var dailyProteinTarget = 100.0
+    @AppStorage("dailyWaterTargetMl") private var dailyWaterTarget = 2_000.0
+
+    @State private var selectedDate = Date.now
     @State private var isAddingMeal = false
-    @State private var isEditingTarget = false
+    @State private var mealTypeToAdd: MealType = .breakfast
+    @State private var isEditingTargets = false
+    @State private var mealToEdit: MealEntry?
 
-    private var todaysMeals: [MealEntry] {
-        localStore.mealEntries.filter { Calendar.current.isDateInToday($0.date) }
+    private var calendar: Calendar { .current }
+    private var analytics: MealAnalytics { MealAnalytics(meals: localStore.mealEntries) }
+    private var mealsForSelectedDay: [MealEntry] { analytics.meals(on: selectedDate) }
+
+    private var caloriesConsumed: Double { mealsForSelectedDay.reduce(0) { $0 + $1.calories } }
+    private var carbs: Double { mealsForSelectedDay.reduce(0) { $0 + $1.carbohydratesGrams } }
+    private var fat: Double { mealsForSelectedDay.reduce(0) { $0 + $1.fatGrams } }
+    private var protein: Double { mealsForSelectedDay.reduce(0) { $0 + $1.proteinGrams } }
+    private var isToday: Bool { calendar.isDateInToday(selectedDate) }
+
+    private var waterForSelectedDay: [WaterEntry] {
+        localStore.waterEntries.filter { calendar.isDate($0.date, inSameDayAs: selectedDate) }
     }
+    private var waterConsumedMl: Double { waterForSelectedDay.reduce(0) { $0 + $1.amountMl } }
 
-    private var caloriesConsumed: Double { todaysMeals.reduce(0) { $0 + $1.calories } }
-    private var protein: Double { todaysMeals.reduce(0) { $0 + $1.proteinGrams } }
-    private var carbohydrates: Double { todaysMeals.reduce(0) { $0 + $1.carbohydratesGrams } }
-    private var fat: Double { todaysMeals.reduce(0) { $0 + $1.fatGrams } }
-    private var netCalories: Double { caloriesConsumed - healthStore.metrics.activeEnergy }
+    /// Backdates a quick-add to the selected day (keeping today's actual time of day) when
+    /// browsing a past date, rather than only allowing water logging for "today".
+    private var entryDate: Date {
+        if isToday { return .now }
+        let time = calendar.dateComponents([.hour, .minute, .second], from: .now)
+        return calendar.date(bySettingHour: time.hour ?? 12, minute: time.minute ?? 0, second: 0, of: selectedDate) ?? selectedDate
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Nutrition")
-                            .font(.largeTitle.weight(.bold))
-                        Text("Track meals and understand your daily energy balance.")
-                            .foregroundStyle(AppTheme.secondaryText)
-                    }
+                    header
+                    weekStrip
+                    goalRings
+                    hydrationCard
+                    if isToday { energyBalanceSummary }
 
-                    calorieSummary
-                    macroSummary
-
-                    HStack {
-                        Text("Today’s Meals")
-                            .font(.title3.weight(.bold))
-                        Spacer()
-                        Button("Add Meal", systemImage: "plus") { isAddingMeal = true }
-                            .buttonStyle(.borderedProminent)
-                            .tint(AppTheme.tint)
-                            .foregroundStyle(AppTheme.screenBackground)
-                    }
-
-                    if todaysMeals.isEmpty {
-                        ContentUnavailableView("No meals logged", systemImage: "fork.knife", description: Text("Add a meal to start tracking today’s nutrition."))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
-                    } else {
-                        ForEach(todaysMeals) { meal in
-                            MealCard(meal: meal)
-                        }
+                    ForEach(MealType.allCases) { type in
+                        mealSection(for: type)
                     }
                 }
                 .padding()
             }
             .background(AppTheme.screenBackground)
-            .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $isAddingMeal) { MealEditorView() }
-            .sheet(isPresented: $isEditingTarget) { CalorieTargetEditor(target: $dailyCalorieTarget) }
+            .clearsFloatingTabBar()
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Nutrition").font(.headline)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        MealInsightsView()
+                    } label: {
+                        Image(systemName: "chart.bar.fill")
+                    }
+                }
+            }
+            .sheet(isPresented: $isAddingMeal) {
+                FoodSearchView(mealType: mealTypeToAdd, date: selectedDate)
+            }
+            .sheet(item: $mealToEdit) { meal in
+                MealEditorView(meal: meal)
+            }
+            .sheet(isPresented: $isEditingTargets) {
+                NutritionTargetsEditor(
+                    calorieTarget: $dailyCalorieTarget,
+                    carbsTarget: $dailyCarbsTarget,
+                    fatTarget: $dailyFatTarget,
+                    proteinTarget: $dailyProteinTarget
+                )
+            }
             .task { await healthStore.refresh() }
             .refreshable { await healthStore.refresh() }
         }
     }
 
-    private var calorieSummary: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Daily Energy")
-                    .font(.title3.weight(.bold))
-                Spacer()
-                Button("Edit target") { isEditingTarget = true }
-                    .font(.subheadline.weight(.semibold))
-            }
-            HStack(alignment: .firstTextBaseline) {
-                Text(caloriesConsumed.formatted(.number.precision(.fractionLength(0))))
-                    .font(.system(size: 42, weight: .bold, design: .rounded))
-                Text("/ \(dailyCalorieTarget.formatted(.number.precision(.fractionLength(0)))) kcal")
+    // MARK: Header + day selector
+
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Nutrition")
+                    .font(.largeTitle.weight(.bold))
+                Text(selectedDate, format: .dateTime.weekday(.wide).day().month(.wide))
                     .foregroundStyle(AppTheme.secondaryText)
             }
-            ProgressView(value: min(caloriesConsumed / max(dailyCalorieTarget, 1), 1))
-                .tint(caloriesConsumed > dailyCalorieTarget ? AppTheme.energy : AppTheme.tint)
-            HStack {
-                InsightLabel(title: "Intake", value: "\(Int(caloriesConsumed)) kcal", image: "fork.knife")
-                Spacer()
-                InsightLabel(title: "Active burn", value: "\(Int(healthStore.metrics.activeEnergy)) kcal", image: "flame.fill")
-                Spacer()
-                InsightLabel(title: "Net", value: "\(Int(netCalories)) kcal", image: "equal.circle.fill")
+            Spacer()
+            Button("Edit Targets") { isEditingTargets = true }
+                .font(.footnote.weight(.semibold))
+        }
+    }
+
+    private var weekStrip: some View {
+        let days = lastSevenDays()
+        return HStack(spacing: 6) {
+            ForEach(days, id: \.self) { day in
+                let selected = calendar.isDate(day, inSameDayAs: selectedDate)
+                Button {
+                    Haptic.light()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                        selectedDate = day
+                    }
+                } label: {
+                    VStack(spacing: 6) {
+                        Text(day, format: .dateTime.weekday(.narrow))
+                            .font(.caption2.weight(.semibold))
+                        Text(day, format: .dateTime.day())
+                            .font(.subheadline.weight(.bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(selected ? AppTheme.tint : AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .foregroundStyle(selected ? AppTheme.screenBackground : .primary)
+                    .scaleEffect(selected ? 1.05 : 1)
+                }
+                .buttonStyle(.pressable)
             }
-            Text(calorieInsight)
+        }
+    }
+
+    private func lastSevenDays() -> [Date] {
+        guard let start = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: .now)) else { return [] }
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+    }
+
+    // MARK: Goal rings
+
+    private var goalRings: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            GoalRingCard(title: "Calories", value: caloriesConsumed, target: dailyCalorieTarget, unit: "", color: AppTheme.energy)
+                .staggeredAppear(0)
+            GoalRingCard(title: "Carbs", value: carbs, target: dailyCarbsTarget, unit: "g", color: .blue)
+                .staggeredAppear(1)
+            GoalRingCard(title: "Fat", value: fat, target: dailyFatTarget, unit: "g", color: .green)
+                .staggeredAppear(2)
+            GoalRingCard(title: "Protein", value: protein, target: dailyProteinTarget, unit: "g", color: .orange)
+                .staggeredAppear(3)
+        }
+    }
+
+    private var hydrationCard: some View {
+        let progress = dailyWaterTarget > 0 ? min(waterConsumedMl / dailyWaterTarget, 1) : 0
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Hydration", systemImage: "drop.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(.cyan)
+                Spacer()
+                Text("\(Int(waterConsumedMl)) / \(Int(dailyWaterTarget)) ml")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+            }
+            ProgressView(value: progress)
+                .tint(.cyan)
+            HStack(spacing: 10) {
+                ForEach([250, 500, 750], id: \.self) { amount in
+                    Button {
+                        Haptic.light()
+                        let entry = WaterEntry(amountMl: Double(amount), date: entryDate)
+                        localStore.add(water: entry)
+                        Task { await healthStore.writeToHealth(water: entry) }
+                    } label: {
+                        Text("+\(amount) ml")
+                            .font(.caption.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(AppTheme.elevatedCardBackground, in: Capsule())
+                            .foregroundStyle(AppTheme.primaryText)
+                    }
+                    .buttonStyle(.pressable)
+                }
+            }
+        }
+        .padding()
+        .softCard(radius: 20)
+    }
+
+    private var energyBalanceSummary: some View {
+        let insights = HealthInsights(metrics: healthStore.metrics, trends: healthStore.weeklyTrends, calorieTarget: dailyCalorieTarget)
+        return VStack(alignment: .leading, spacing: 6) {
+            Label("Energy Balance", systemImage: "flame.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.tint)
+            Text(insights.calorieBalanceInsight(caloriesConsumed: caloriesConsumed))
                 .font(.footnote)
                 .foregroundStyle(AppTheme.secondaryText)
         }
         .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(AppTheme.border) }
+        .softCard(radius: 18)
     }
 
-    private var macroSummary: some View {
-        HStack(spacing: 12) {
-            MacroCard(title: "Protein", value: protein, color: .cyan)
-            MacroCard(title: "Carbs", value: carbohydrates, color: AppTheme.tint)
-            MacroCard(title: "Fat", value: fat, color: AppTheme.energy)
-        }
-    }
+    // MARK: Meal sections
 
-    private var calorieInsight: String {
-        let remaining = dailyCalorieTarget - caloriesConsumed
-        if remaining >= 0 {
-            return "\(Int(remaining)) kcal remain within your daily target. Active calories burned are read from HealthKit."
-        }
-        return "You are \(Int(abs(remaining))) kcal above your daily target. Active calories burned are read from HealthKit."
-    }
-}
+    private func mealSection(for type: MealType) -> some View {
+        let meals = mealsForSelectedDay.filter { $0.mealType == type }
+        let total = meals.reduce(0) { $0 + $1.calories }
 
-private struct MealCard: View {
-    let meal: MealEntry
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: meal.mealType.systemImage)
-                .font(.title3)
-                .foregroundStyle(AppTheme.tint)
-                .frame(width: 40, height: 40)
-                .background(AppTheme.elevatedCardBackground, in: Circle())
-            VStack(alignment: .leading, spacing: 4) {
-                Text(meal.name).font(.headline)
-                Text("\(meal.mealType.title) · P \(Int(meal.proteinGrams))g · C \(Int(meal.carbohydratesGrams))g · F \(Int(meal.fatGrams))g")
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.secondaryText)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label(type.title, systemImage: type.systemImage)
+                    .font(.headline)
+                Spacer()
+                if !meals.isEmpty {
+                    AnimatedIntText(value: Int(total), suffix: " kcal")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
             }
-            Spacer()
-            Text("\(Int(meal.calories))")
-                .font(.title3.weight(.bold))
-            Text("kcal")
-                .font(.caption)
-                .foregroundStyle(AppTheme.secondaryText)
+
+            VStack(spacing: 0) {
+                ForEach(meals) { meal in
+                    MealRow(
+                        meal: meal,
+                        onEdit: {
+                            Haptic.light()
+                            mealToEdit = meal
+                        },
+                        onDelete: {
+                            withAnimation { localStore.delete(meal: meal) }
+                        }
+                    )
+                    .contextMenu {
+                        Button("Edit", systemImage: "pencil") { mealToEdit = meal }
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            withAnimation { localStore.delete(meal: meal) }
+                        }
+                    }
+                    if meal.id != meals.last?.id {
+                        Divider().background(AppTheme.border)
+                    }
+                }
+
+                if !meals.isEmpty {
+                    Divider().background(AppTheme.border)
+                }
+
+                Button {
+                    Haptic.light()
+                    mealTypeToAdd = type
+                    isAddingMeal = true
+                } label: {
+                    Label("Add Food", systemImage: "plus.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppTheme.tint)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.pressable)
+            }
+            .padding(.horizontal)
+            .softCard(radius: 18)
         }
-        .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(AppTheme.border) }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(meal.name), \(meal.mealType.title)")
-        .accessibilityValue("\(Int(meal.calories)) calories, \(Int(meal.proteinGrams)) grams protein, \(Int(meal.carbohydratesGrams)) grams carbohydrates, \(Int(meal.fatGrams)) grams fat")
     }
 }
 
-private struct MacroCard: View {
+private struct GoalRingCard: View {
     let title: String
     let value: Double
+    let target: Double
+    let unit: String
+    let color: Color
+
+    private var progress: Double { target > 0 ? min(value / target, 1) : 0 }
+    private var remaining: Double { target - value }
+    private var isOver: Bool { remaining < 0 }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.subheadline.weight(.semibold))
+                HStack(spacing: 4) {
+                    AnimatedIntText(value: Int(abs(remaining)), suffix: "\(unit) \(isOver ? "over" : "under")")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                    if !isOver {
+                        Image(systemName: "checkmark")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(color)
+                    }
+                }
+            }
+            Spacer()
+            AnimatedRing(progress: progress, color: color, lineWidth: 6, celebratesCompletion: true)
+                .frame(width: 36, height: 36)
+        }
+        .padding()
+        .softCard(radius: 18)
+    }
+}
+
+private struct MealRow: View {
+    let meal: MealEntry
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(meal.name).font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.primaryText)
+                HStack(spacing: 10) {
+                    MacroBadge(label: "🔥", value: Int(meal.calories), color: AppTheme.energy)
+                    MacroBadge(label: "C", value: Int(meal.carbohydratesGrams), color: .blue)
+                    MacroBadge(label: "F", value: Int(meal.fatGrams), color: .green)
+                    MacroBadge(label: "P", value: Int(meal.proteinGrams), color: .orange)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onEdit)
+
+            Button(role: .destructive, action: onDelete) {
+                Image(systemName: "minus.circle.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.mutedText)
+            }
+            .buttonStyle(.pressable)
+        }
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(meal.name), \(meal.mealType.title)")
+        .accessibilityValue("\(Int(meal.calories)) calories, \(Int(meal.carbohydratesGrams)) grams carbohydrates, \(Int(meal.fatGrams)) grams fat, \(Int(meal.proteinGrams)) grams protein")
+        .accessibilityAction(named: "Edit", onEdit)
+        .accessibilityAction(named: "Delete", onDelete)
+    }
+}
+
+private struct MacroBadge: View {
+    let label: String
+    let value: Int
     let color: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text("\(Int(value))g").font(.title3.bold())
-            Text(title).font(.caption).foregroundStyle(AppTheme.secondaryText)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(AppTheme.cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-}
-
-private struct InsightLabel: View {
-    let title: String
-    let value: String
-    let image: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(title, systemImage: image)
-                .font(.caption)
+        HStack(spacing: 3) {
+            Text(label)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(color)
+            Text("\(value)")
+                .font(.caption2)
                 .foregroundStyle(AppTheme.secondaryText)
-            Text(value).font(.subheadline.weight(.bold))
         }
     }
 }
+
 
 private struct MealEditorView: View {
+    let meal: MealEntry
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var localStore: LocalStore
-    @State private var name = ""
-    @State private var mealType: MealType = .breakfast
-    @State private var calories = 0.0
-    @State private var protein = 0.0
-    @State private var carbohydrates = 0.0
-    @State private var fat = 0.0
+
+    @State private var name: String
+    @State private var mealType: MealType
+    @State private var calories: Double
+    @State private var protein: Double
+    @State private var carbs: Double
+    @State private var fat: Double
+
+    init(meal: MealEntry) {
+        self.meal = meal
+        _name = State(initialValue: meal.name)
+        _mealType = State(initialValue: meal.mealType)
+        _calories = State(initialValue: meal.calories)
+        _protein = State(initialValue: meal.proteinGrams)
+        _carbs = State(initialValue: meal.carbohydratesGrams)
+        _fat = State(initialValue: meal.fatGrams)
+    }
+
+    private var isValid: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && calories >= 0
+    }
 
     var body: some View {
         NavigationStack {
@@ -201,55 +397,106 @@ private struct MealEditorView: View {
                             Label(type.title, systemImage: type.systemImage).tag(type)
                         }
                     }
-                    TextField("Calories", value: $calories, format: .number)
-                        .keyboardType(.decimalPad)
                 }
-                Section("Macros (optional, grams)") {
-                    TextField("Protein", value: $protein, format: .number).keyboardType(.decimalPad)
-                    TextField("Carbohydrates", value: $carbohydrates, format: .number).keyboardType(.decimalPad)
-                    TextField("Fat", value: $fat, format: .number).keyboardType(.decimalPad)
+                Section("Nutrition") {
+                    LabeledContent("Calories") {
+                        TextField("Calories", value: $calories, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Protein (g)") {
+                        TextField("Protein", value: $protein, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Carbs (g)") {
+                        TextField("Carbs", value: $carbs, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Fat (g)") {
+                        TextField("Fat", value: $fat, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                }
+                Section {
+                    Button("Delete Meal", systemImage: "trash", role: .destructive) {
+                        localStore.delete(meal: meal)
+                        dismiss()
+                    }
                 }
             }
-            .navigationTitle("Log Meal")
+            .navigationTitle("Edit Meal")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        localStore.add(meal: MealEntry(name: name, mealType: mealType, calories: calories, proteinGrams: protein, carbohydratesGrams: carbohydrates, fatGrams: fat))
+                        localStore.update(meal: MealEntry(
+                            id: meal.id,
+                            name: name,
+                            mealType: mealType,
+                            calories: calories,
+                            proteinGrams: protein,
+                            carbohydratesGrams: carbs,
+                            fatGrams: fat,
+                            date: meal.date,
+                            updatedAt: .now
+                        ))
                         dismiss()
                     }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || calories <= 0)
+                    .disabled(!isValid)
                 }
             }
         }
     }
 }
 
-private struct CalorieTargetEditor: View {
+private struct NutritionTargetsEditor: View {
     @Environment(\.dismiss) private var dismiss
-    @Binding var target: Double
-    @State private var value: Double
+    @Binding var calorieTarget: Double
+    @Binding var carbsTarget: Double
+    @Binding var fatTarget: Double
+    @Binding var proteinTarget: Double
 
-    init(target: Binding<Double>) {
-        _target = target
-        _value = State(initialValue: target.wrappedValue)
+    @State private var calories: Double
+    @State private var carbs: Double
+    @State private var fat: Double
+    @State private var protein: Double
+
+    init(calorieTarget: Binding<Double>, carbsTarget: Binding<Double>, fatTarget: Binding<Double>, proteinTarget: Binding<Double>) {
+        _calorieTarget = calorieTarget
+        _carbsTarget = carbsTarget
+        _fatTarget = fatTarget
+        _proteinTarget = proteinTarget
+        _calories = State(initialValue: calorieTarget.wrappedValue)
+        _carbs = State(initialValue: carbsTarget.wrappedValue)
+        _fat = State(initialValue: fatTarget.wrappedValue)
+        _protein = State(initialValue: proteinTarget.wrappedValue)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Daily calorie target", value: $value, format: .number)
-                    .keyboardType(.decimalPad)
-                Text("Choose a target that suits your own goals and professional guidance.")
+                Section("Daily Targets") {
+                    LabeledContent("Calories") {
+                        TextField("Calories", value: $calories, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Carbs (g)") {
+                        TextField("Carbs", value: $carbs, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Fat (g)") {
+                        TextField("Fat", value: $fat, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                    LabeledContent("Protein (g)") {
+                        TextField("Protein", value: $protein, format: .number).keyboardType(.decimalPad).multilineTextAlignment(.trailing)
+                    }
+                }
+                Text("Choose targets that suit your own goals and professional guidance.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            .navigationTitle("Calorie Target")
+            .navigationTitle("Nutrition Targets")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        target = max(value, 1)
+                        calorieTarget = max(calories, 1)
+                        carbsTarget = max(carbs, 1)
+                        fatTarget = max(fat, 1)
+                        proteinTarget = max(protein, 1)
                         dismiss()
                     }
                 }

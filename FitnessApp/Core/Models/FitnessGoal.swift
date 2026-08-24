@@ -35,6 +35,7 @@ enum GoalMetric: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Domain model for a fitness goal. Framework-independent (no HealthKit/CloudKit/SwiftData types).
 struct FitnessGoal: Identifiable, Codable, Equatable {
     let id: UUID
     let title: String
@@ -42,15 +43,25 @@ struct FitnessGoal: Identifiable, Codable, Equatable {
     let currentValue: Double
     let unit: String
     let createdAt: Date
+    let updatedAt: Date
     let metric: GoalMetric
 
-    init(title: String, targetValue: Double, unit: String, metric: GoalMetric = .custom, currentValue: Double = 0, createdAt: Date = .now) {
+    init(
+        title: String,
+        targetValue: Double,
+        unit: String,
+        metric: GoalMetric = .custom,
+        currentValue: Double = 0,
+        createdAt: Date = .now,
+        updatedAt: Date = .now
+    ) {
         self.id = UUID()
         self.title = title
         self.targetValue = targetValue
         self.currentValue = currentValue
         self.unit = unit
         self.createdAt = createdAt
+        self.updatedAt = updatedAt
         self.metric = metric
     }
 
@@ -82,12 +93,13 @@ struct FitnessGoal: Identifiable, Codable, Equatable {
             unit: unit,
             metric: metric,
             currentValue: value,
-            createdAt: createdAt
+            createdAt: createdAt,
+            updatedAt: .now
         )
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, targetValue, currentValue, unit, createdAt, metric
+        case id, title, targetValue, currentValue, unit, createdAt, updatedAt, metric
     }
 
     init(from decoder: Decoder) throws {
@@ -99,9 +111,12 @@ struct FitnessGoal: Identifiable, Codable, Equatable {
         unit = try container.decode(String.self, forKey: .unit)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         metric = try container.decodeIfPresent(GoalMetric.self, forKey: .metric) ?? .custom
+        // Back-compat: older persisted records won't have updatedAt.
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
     }
 
-    private init(id: UUID, title: String, targetValue: Double, unit: String, metric: GoalMetric, currentValue: Double, createdAt: Date) {
+    /// Internal reconstruction initializer (id/createdAt preserved) used by repositories and `updatingCurrentValue`.
+    init(id: UUID, title: String, targetValue: Double, unit: String, metric: GoalMetric, currentValue: Double, createdAt: Date, updatedAt: Date) {
         self.id = id
         self.title = title
         self.targetValue = targetValue
@@ -109,5 +124,6 @@ struct FitnessGoal: Identifiable, Codable, Equatable {
         self.metric = metric
         self.currentValue = currentValue
         self.createdAt = createdAt
+        self.updatedAt = updatedAt
     }
 }

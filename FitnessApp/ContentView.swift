@@ -6,38 +6,93 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var healthStore: HealthStore
+    @EnvironmentObject private var localStore: LocalStore
+    @EnvironmentObject private var mealReminderScheduler: MealReminderScheduler
+    @EnvironmentObject private var wellnessReminderScheduler: WellnessReminderScheduler
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+
     var body: some View {
-        TabView {
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "square.grid.2x2.fill")
-                }
+        VStack(spacing: 0) {
+            HealthPermissionBanner()
 
-            ActivityView()
-                .tabItem {
-                    Label("Activity", systemImage: "figure.walk")
-                }
+            // Exactly 5 tabs on purpose — iOS auto-collapses anything past 5 into a stock
+            // "More" list (that's what was rendering the undesigned overflow screen before).
+            // Journal/Goals/Profile/Settings now live in our own MoreView instead.
+            TabView {
+                DashboardView()
+                    .tabItem { Image(systemName: "square.grid.2x2.fill") }
 
-            MealsView()
-                .tabItem {
-                    Label("Meals", systemImage: "fork.knife")
-                }
+                ActivityView()
+                    .tabItem { Image(systemName: "figure.walk") }
 
-            JournalView()
-                .tabItem {
-                    Label("Journal", systemImage: "note.text")
-                }
+                HealthOverviewView()
+                    .tabItem { Image(systemName: "heart.fill") }
 
-            GoalsView()
-                .tabItem {
-                    Label("Goals", systemImage: "target")
-                }
+                MealsView()
+                    .tabItem { Image(systemName: "fork.knife") }
 
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape")
-                }
+                MoreView()
+                    .tabItem { Image(systemName: "ellipsis") }
+            }
+            .tint(AppTheme.tint)
         }
-        .tint(AppTheme.tint)
+        .background(AppTheme.screenBackground)
+        // One line, applies everywhere: every .largeTitle/.headline/.caption/etc across the
+        // whole app switches from default San Francisco to SF Pro Rounded. This is what was
+        // actually missing for "designed" typography — the 250+ existing .font(...) call sites
+        // don't need touching individually since they all resolve through this environment value.
+        .fontDesign(.rounded)
+        .fullScreenCover(isPresented: Binding(get: { !hasCompletedOnboarding }, set: { hasCompletedOnboarding = !$0 })) {
+            OnboardingView()
+        }
+        .task {
+            await refreshMealReminders()
+            await refreshWellnessReminders()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task {
+                    await refreshMealReminders()
+                    await refreshWellnessReminders()
+                }
+            }
+        }
+        .onChange(of: localStore.mealEntries) { _, _ in
+            Task { await refreshMealReminders() }
+        }
+        .onChange(of: localStore.waterEntries) { _, _ in
+            Task { await refreshWellnessReminders() }
+        }
+        .onChange(of: healthStore.metrics) { _, _ in
+            Task { await refreshWellnessReminders() }
+        }
+    }
+
+    /// Re-syncs the whole reminder schedule: fresh authorization status, fresh "what's already
+    /// logged today" set. Cheap enough to call every time either of those might have changed.
+    private func refreshMealReminders() async {
+        await mealReminderScheduler.refreshAuthorizationStatus()
+        let settings = MealReminderSettings.current()
+        let todaysTypes = Set(
+            localStore.mealEntries
+                .filter { Calendar.current.isDateInToday($0.date) }
+                .map(\.mealType)
+        )
+        await mealReminderScheduler.refreshSchedule(settings: settings, todaysLoggedMealTypes: todaysTypes)
+    }
+
+    private func refreshWellnessReminders() async {
+        await wellnessReminderScheduler.refreshAuthorizationStatus()
+        let settings = WellnessReminderSettings.current()
+        let todaysWater = localStore.waterEntries
+            .filter { Calendar.current.isDateInToday($0.date) }
+            .reduce(0) { $0 + $1.amountMl }
+        await wellnessReminderScheduler.refreshSchedule(
+            settings: settings,
+            todaysWaterMl: todaysWater,
+            todaysSteps: healthStore.metrics.steps
+        )
     }
 }
