@@ -48,6 +48,7 @@ struct DailyMetricPoint: Identifiable, Equatable {
 /// Bundled 7-day trend series so a single HealthKit refresh populates every chart at once.
 struct WeeklyHealthTrends: Equatable {
     var activeEnergy: [DailyMetricPoint] = []
+    var restingEnergy: [DailyMetricPoint] = []
     var steps: [DailyMetricPoint] = []
     var exerciseMinutes: [DailyMetricPoint] = []
     var distanceMeters: [DailyMetricPoint] = []

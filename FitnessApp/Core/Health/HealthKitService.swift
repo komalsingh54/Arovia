@@ -235,6 +235,7 @@ struct HealthKitService {
 
     func fetchWeeklyTrends() async throws -> WeeklyHealthTrends {
         async let activeEnergy = weeklyCumulativeSeries(identifier: .activeEnergyBurned, unit: .kilocalorie())
+        async let restingEnergy = weeklyCumulativeSeries(identifier: .basalEnergyBurned, unit: .kilocalorie())
         async let steps = weeklyCumulativeSeries(identifier: .stepCount, unit: .count())
         async let exerciseMinutes = weeklyCumulativeSeries(identifier: .appleExerciseTime, unit: .minute())
         async let distance = weeklyCumulativeSeries(identifier: .distanceWalkingRunning, unit: .meter())
@@ -244,6 +245,7 @@ struct HealthKitService {
 
         return try await WeeklyHealthTrends(
             activeEnergy: activeEnergy,
+            restingEnergy: restingEnergy,
             steps: steps,
             exerciseMinutes: exerciseMinutes,
             distanceMeters: distance,

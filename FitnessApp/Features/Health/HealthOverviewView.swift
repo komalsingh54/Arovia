@@ -21,6 +21,23 @@ struct HealthOverviewView: View {
             .reduce(0) { $0 + $1.calories }
     }
 
+    /// Local data (meals aren't in HealthKit unless "Write to Apple Health" is on), computed to
+    /// match the same 7-day window and day-boundary logic HealthKitService uses for the other
+    /// trend series, so all three charts in Energy Balance line up on the same days.
+    private var weeklyEatenTrend: [DailyMetricPoint] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        guard let weekStart = calendar.date(byAdding: .day, value: -6, to: today) else { return [] }
+
+        return (0...6).compactMap { offset -> DailyMetricPoint? in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: weekStart) else { return nil }
+            let total = localStore.mealEntries
+                .filter { calendar.isDate($0.date, inSameDayAs: day) }
+                .reduce(0) { $0 + $1.calories }
+            return DailyMetricPoint(date: day, value: total)
+        }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -101,19 +118,31 @@ struct HealthOverviewView: View {
                 .font(.footnote)
                 .foregroundStyle(AppTheme.secondaryText)
 
-            if !healthStore.weeklyTrends.activeEnergy.isEmpty {
-                Chart(healthStore.weeklyTrends.activeEnergy) { point in
-                    BarMark(x: .value("Day", point.date, unit: .day), y: .value("kcal", point.value))
-                        .foregroundStyle(AppTheme.energy.gradient)
-                        .cornerRadius(4)
-                }
-                .chartXAxis { AxisMarks(values: .stride(by: .day)) { AxisValueLabel(format: .dateTime.weekday(.abbreviated)) } }
-                .frame(height: 140)
-                .accessibilityLabel("Active energy burned over the last 7 days")
-            }
+            energyTrendChart(title: "Active", points: healthStore.weeklyTrends.activeEnergy, color: AppTheme.energy)
+            energyTrendChart(title: "Resting", points: healthStore.weeklyTrends.restingEnergy, color: .cyan)
+            energyTrendChart(title: "Eaten", points: weeklyEatenTrend, color: AppTheme.tint)
         }
         .padding()
         .softCard(radius: 24)
+    }
+
+    @ViewBuilder
+    private func energyTrendChart(title: String, points: [DailyMetricPoint], color: Color) -> some View {
+        if !points.isEmpty && points.contains(where: { $0.value > 0 }) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppTheme.secondaryText)
+                Chart(points) { point in
+                    BarMark(x: .value("Day", point.date, unit: .day), y: .value("kcal", point.value))
+                        .foregroundStyle(color.gradient)
+                        .cornerRadius(4)
+                }
+                .chartXAxis { AxisMarks(values: .stride(by: .day)) { AxisValueLabel(format: .dateTime.weekday(.narrow)) } }
+                .frame(height: 100)
+                .accessibilityLabel("\(title) energy over the last 7 days")
+            }
+        }
     }
 
     private var heartRateCard: some View {
