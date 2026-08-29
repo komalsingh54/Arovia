@@ -10,8 +10,10 @@ struct ContentView: View {
     @EnvironmentObject private var localStore: LocalStore
     @EnvironmentObject private var mealReminderScheduler: MealReminderScheduler
     @EnvironmentObject private var wellnessReminderScheduler: WellnessReminderScheduler
+    @EnvironmentObject private var appLockManager: AppLockManager
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @AppStorage("appLockEnabled") private var appLockEnabled = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,6 +48,20 @@ struct ContentView: View {
         .fontDesign(.rounded)
         .fullScreenCover(isPresented: Binding(get: { !hasCompletedOnboarding }, set: { hasCompletedOnboarding = !$0 })) {
             OnboardingView()
+        }
+        .overlay {
+            // Only relevant once onboarding's done — locking someone out of their own
+            // first-run setup would be pointless since there's no data to protect yet.
+            if appLockEnabled && hasCompletedOnboarding && !appLockManager.isUnlocked {
+                AppLockScreen()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: appLockManager.isUnlocked)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .background && appLockEnabled {
+                appLockManager.lock()
+            }
         }
         .task {
             await refreshMealReminders()

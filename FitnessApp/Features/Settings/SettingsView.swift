@@ -94,6 +94,9 @@ struct SettingsView: View {
                         .font(.subheadline.weight(.semibold))
                     }
 
+                    DataExportSection()
+                    AppLockSection()
+
                     SettingsGroup(title: "Privacy") {
                         Text("Health data is read only after you grant permission. Personal goals and journal entries stay on this device and sync privately to your iCloud account.")
                             .font(.footnote)
@@ -122,6 +125,68 @@ struct SettingsView: View {
         case .authorizationRequired: "Not connected"
         case .failed: "Try again"
         case .idle: "Not connected"
+        }
+    }
+}
+
+private struct DataExportSection: View {
+    @EnvironmentObject private var localStore: LocalStore
+    @State private var exportURL: URL?
+    @State private var exportError: String?
+
+    var body: some View {
+        SettingsGroup(title: "Data & Backup") {
+            Text("iCloud Sync is off right now, which means everything below lives only on this device. Export creates a plain JSON file with all your goals, journal entries, meals, and water logs — keep a copy somewhere safe.")
+                .font(.caption)
+                .foregroundStyle(AppTheme.mutedText)
+
+            if let exportURL {
+                ShareLink(item: exportURL) {
+                    Label("Share Export", systemImage: "square.and.arrow.up")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.tint)
+            } else {
+                Button("Prepare Export") {
+                    do {
+                        let bundle = DataExportBundle(localStore: localStore)
+                        exportURL = try bundle.writeToTemporaryFile()
+                        exportError = nil
+                    } catch {
+                        exportError = "Couldn't prepare the export: \(error.localizedDescription)"
+                    }
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppTheme.tint)
+            }
+
+            if let exportError {
+                Text(exportError)
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.energy)
+            }
+        }
+    }
+}
+
+private struct AppLockSection: View {
+    @EnvironmentObject private var appLockManager: AppLockManager
+    @AppStorage("appLockEnabled") private var appLockEnabled = false
+
+    var body: some View {
+        SettingsGroup(title: "App Lock") {
+            Toggle("Require Face ID to open Arovia", isOn: $appLockEnabled)
+                .tint(AppTheme.tint)
+
+            if appLockEnabled && !appLockManager.isAvailable {
+                Text("This device doesn't have Face ID, Touch ID, or a passcode set up, so this won't have any effect until one is.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.energy)
+            } else {
+                Text("Uses Face ID, Touch ID, or your device passcode — whichever you already use to unlock your phone. Arovia locks itself again every time it goes to the background.")
+                    .font(.caption)
+                    .foregroundStyle(AppTheme.mutedText)
+            }
         }
     }
 }
