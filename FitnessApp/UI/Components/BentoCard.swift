@@ -104,12 +104,15 @@ struct BentoTallCard: View {
                 .fill(AppTheme.screenBackground.opacity(0.22))
                 .frame(height: 6)
                 .overlay(alignment: .leading) {
-                    GeometryReader { proxy in
-                        Capsule()
-                            .fill(AppTheme.screenBackground)
-                            .frame(width: proxy.size.width * progress)
-                            .animation(.spring(response: 0.7, dampingFraction: 0.85), value: progress)
-                    }
+                    // Shapes without an explicit frame expand to fill the space offered by
+                    // .overlay, so this Capsule already matches the track's width — scaling it
+                    // down from the leading edge draws the same progress bar without needing a
+                    // GeometryReader (which was producing 'Conversion error!' console spam when
+                    // combined with the width animation below).
+                    Capsule()
+                        .fill(AppTheme.screenBackground)
+                        .scaleEffect(x: max(progress, 0.001), y: 1, anchor: .leading)
+                        .animation(.spring(response: 0.7, dampingFraction: 0.85), value: progress)
                 }
 
             Text(title)

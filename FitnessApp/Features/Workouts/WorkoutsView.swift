@@ -127,12 +127,10 @@ private struct WorkoutRow: View {
                     .fill(AppTheme.tint.opacity(0.18))
                     .frame(height: 5)
                     .overlay(alignment: .leading) {
-                        GeometryReader { proxy in
-                            Capsule()
-                                .fill(AppTheme.tint)
-                                .frame(width: proxy.size.width * sessionProgress)
-                                .animation(.spring(response: 0.7, dampingFraction: 0.85), value: sessionProgress)
-                        }
+                        Capsule()
+                            .fill(AppTheme.tint)
+                            .scaleEffect(x: max(sessionProgress, 0.001), y: 1, anchor: .leading)
+                            .animation(.spring(response: 0.7, dampingFraction: 0.85), value: sessionProgress)
                     }
                 Text(workout.durationDescription)
                     .font(.caption.weight(.semibold))
