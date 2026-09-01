@@ -11,6 +11,7 @@ struct ActivityView: View {
     @AppStorage("motionDetectionEnabled") private var motionDetectionEnabled = false
     @State private var workoutToAnnotate: WorkoutSummary?
     @State private var isLoggingWorkout = false
+    @State private var isTrackingWalk = false
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,31 @@ struct ActivityView: View {
                             }
                         }
                     }
+
+                    Button { isTrackingWalk = true } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "map.fill")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppTheme.tint)
+                                .frame(width: 40, height: 40)
+                                .background(AppTheme.tint.opacity(0.16), in: Circle())
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Start Outdoor Walk")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(AppTheme.primaryText)
+                                Text("Live map, distance, pace — saved to Apple Health")
+                                    .font(.caption)
+                                    .foregroundStyle(AppTheme.mutedText)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(AppTheme.mutedText)
+                        }
+                        .padding()
+                        .softCard(radius: 20)
+                    }
+                    .buttonStyle(.pressable)
 
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -111,6 +137,9 @@ struct ActivityView: View {
             }
             .sheet(isPresented: $isLoggingWorkout) {
                 ManualWorkoutEditorView()
+            }
+            .fullScreenCover(isPresented: $isTrackingWalk) {
+                OutdoorWalkView()
             }
         }
     }

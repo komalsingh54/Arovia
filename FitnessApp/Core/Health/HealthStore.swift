@@ -6,6 +6,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import CoreLocation
 
 #if canImport(HealthKit)
 import HealthKit
@@ -172,6 +173,25 @@ final class HealthStore: ObservableObject {
             guard granted else { throw HealthKitServiceError.authorizationRequired }
         }
         try await HealthKitService().saveManualWorkout(type: type, start: start, duration: duration)
+        await refresh()
+        #endif
+    }
+
+    /// Persists a tracked outdoor walk (see WalkTrackingService/OutdoorWalkView) as a walking
+    /// workout with an attached GPS route. Same write-access gate as saveManualWorkout — walks
+    /// are user-generated content, not read-only health data.
+    func saveOutdoorWalk(_ walk: FinishedWalk) async throws {
+        #if canImport(HealthKit)
+        if !hasWriteAccess {
+            let granted = await requestWriteAuthorization()
+            guard granted else { throw HealthKitServiceError.authorizationRequired }
+        }
+        try await HealthKitService().saveOutdoorWalk(
+            start: walk.start,
+            end: walk.end,
+            distanceMeters: walk.distanceMeters,
+            route: walk.route
+        )
         await refresh()
         #endif
     }

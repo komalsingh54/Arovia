@@ -281,6 +281,7 @@
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Arovia writes meals, water, and manually logged workouts to Apple Health when you turn this on in Settings.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Arovia uses Face ID to keep your health data private when App Lock is turned on in Settings.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Arovia uses motion data to notice walks, runs, and rides you have not logged yet.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Arovia uses your location to map outdoor walks and calculate distance and pace.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Arovia uses the camera to scan barcodes and look up nutrition info for packaged foods.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -323,6 +324,7 @@
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Arovia writes meals, water, and manually logged workouts to Apple Health when you turn this on in Settings.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Arovia uses Face ID to keep your health data private when App Lock is turned on in Settings.";
 				INFOPLIST_KEY_NSMotionUsageDescription = "Arovia uses motion data to notice walks, runs, and rides you have not logged yet.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Arovia uses your location to map outdoor walks and calculate distance and pace.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Arovia uses the camera to scan barcodes and look up nutrition info for packaged foods.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

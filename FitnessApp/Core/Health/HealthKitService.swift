@@ -10,6 +10,7 @@ import Foundation
 
 #if canImport(HealthKit)
 import HealthKit
+import CoreLocation
 
 enum HealthKitServiceError: Error {
     case authorizationRequired
@@ -145,6 +146,39 @@ struct HealthKitService {
             metadata: [HKMetadataKeyWasUserEntered: true]
         )
         try await healthStore.save(workout)
+    }
+
+    /// An outdoor walk tracked live via CoreLocation (see WalkTrackingService/OutdoorWalkView).
+    /// Written as a walking HKWorkout with distance + a rough calorie estimate, then a
+    /// HKWorkoutRoute is attached so the walk's path shows up in Apple Health/Maps the same way
+    /// a Watch-recorded outdoor walk would — Arovia's own Recent Workouts list needs no changes
+    /// since it already reads every workout back through fetchRecentWorkouts().
+    func saveOutdoorWalk(start: Date, end: Date, distanceMeters: Double, route: [CLLocationCoordinate2D]) async throws {
+        let distanceQuantity = HKQuantity(unit: .meter(), doubleValue: distanceMeters)
+        // Rough MET-based estimate for a moderate walk (~3.5 mph); flagged as an estimate rather
+        // than a precise figure since it doesn't factor in the person's actual weight.
+        let estimatedCalories = (distanceMeters / 1000) * 50
+        let energyQuantity = HKQuantity(unit: .kilocalorie(), doubleValue: estimatedCalories)
+
+        let workout = HKWorkout(
+            activityType: .walking,
+            start: start,
+            end: end,
+            workoutEvents: nil,
+            totalEnergyBurned: energyQuantity,
+            totalDistance: distanceQuantity,
+            metadata: [
+                HKMetadataKeyWasUserEntered: false,
+                HKMetadataKeyIndoorWorkout: false
+            ]
+        )
+        try await healthStore.save(workout)
+
+        guard route.count > 1 else { return }
+        let routeBuilder = HKWorkoutRouteBuilder(healthStore: healthStore, device: .local())
+        let locations = route.map { CLLocation(latitude: $0.latitude, longitude: $0.longitude) }
+        try await routeBuilder.insertRouteData(locations)
+        _ = try await routeBuilder.finishRoute(with: workout, metadata: nil)
     }
 
     private func hkActivityType(for type: ManualWorkoutType) -> HKWorkoutActivityType {
